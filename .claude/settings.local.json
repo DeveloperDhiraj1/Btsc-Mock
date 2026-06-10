@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c src/controllers/test.controller.js)",
+      "Bash(node -c src/controllers/payment.controller.js)",
+      "Bash(node -c src/routes/test.routes.js)",
+      "Bash(node -c src/routes/payment.routes.js)",
+      "Bash(NODE_ENV=development timeout 10 node server.js)",
+      "WebFetch(domain:res.cloudinary.com)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s \"http://localhost:5001/api/tests\" -H \"Cookie: noauth=1\")",
+      "Bash(node scripts/check_cats.js)"
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # MongoDB Database service
+  mongodb:
+    image: mongo:latest
+    container_name: btsc_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - btsc_network
+
+  # Redis Cache & queue backend service
+  redis:
+    image: redis:alpine
+    container_name: btsc_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - btsc_network
+
+  # Node Express API Server
+  backend:
+    build: ./backend
+    container_name: btsc_api
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/btsc_mock
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=super_secret_jwt_access_key_123!@#
+      - JWT_REFRESH_SECRET=super_secret_jwt_refresh_key_456!@#
+      - USE_GEMINI_MOCK=true
+      - USE_REDIS_MOCK=false
+      - USE_CLOUDINARY_MOCK=true
+      - USE_EMAIL_MOCK=true
+      - USE_RAZORPAY_MOCK=true
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - btsc_network
+
+  # React Client SPA
+  frontend:
+    build: ./frontend
+    container_name: btsc_client
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - btsc_network
+
+volumes:
+  mongo_data:
+
+networks:
+  btsc_network:
+    driver: bridge
