@@ -37,7 +37,7 @@ app.set('trust proxy', 1);
 // FRONTEND_URL is a comma-separated list of allowed origins. Entries may be
 // exact (https://app.example.com) or contain `*` wildcards
 // (https://*.vercel.app) so Vercel preview deploys don't need re-listing.
-const allowedOriginEntries = (process.env.FRONTEND_URL)
+const allowedOriginEntries = (process.env.FRONTEND_URL || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
