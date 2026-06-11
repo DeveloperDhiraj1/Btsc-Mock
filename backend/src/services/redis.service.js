@@ -73,22 +73,34 @@ if (process.env.USE_REDIS_MOCK === 'true' || !process.env.REDIS_URL) {
   try {
     redisClient = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: 1,
-      connectTimeout: 2000
+      connectTimeout: 2000,
+      lazyConnect: true,
+      retryStrategy: (times) => {
+        if (times > 3) {
+          logger.warn(`Redis unreachable after ${times} attempts — stopping retries, will use mock.`);
+          return null; // stop retrying
+        }
+        return Math.min(times * 500, 2000);
+      }
     });
 
     redisClient.on('connect', () => {
       logger.info('Redis connection established successfully.');
     });
 
+    let failoverDone = false;
     redisClient.on('error', (err) => {
-      logger.error('Redis encountered an error: %O', err);
-      // Failover to Memory Mock
-      if (!isRedisMock) {
+      if (!failoverDone) {
+        logger.error(`Redis encountered an error: ${err.message}`);
+        failoverDone = true;
         logger.warn('Switching to In-Memory Redis client due to connection failure.');
+        try { redisClient.disconnect(); } catch (_) {}
         redisClient = new MemoryRedisMock();
         isRedisMock = true;
       }
     });
+
+    redisClient.connect().catch(() => { /* handled via error event above */ });
   } catch (error) {
     logger.error('Failed to construct Redis client: %O', error);
     redisClient = new MemoryRedisMock();

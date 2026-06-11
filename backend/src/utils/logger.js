@@ -30,6 +30,13 @@ if (process.env.NODE_ENV !== 'production') {
       winston.format.simple()
     )
   }));
+} else {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.simple()
+    )
+  }));
 }
 
 module.exports = logger;

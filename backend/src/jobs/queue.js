@@ -92,7 +92,14 @@ const initQueues = () => {
   // 1. Email Sending Queue
   registerQueue('email-queue', async (job) => {
     const { to, subject, html } = job.data;
-    await sendEmail(to, subject, html);
+    logger.info(`[email-queue] Sending '${subject}' to ${to}`);
+    try {
+      const result = await sendEmail(to, subject, html);
+      logger.info(`[email-queue] Delivered to ${to} (messageId=${result?.messageId || 'n/a'})`);
+    } catch (err) {
+      logger.error(`[email-queue] Failed to send to ${to}: ${err.message}`);
+      throw err;
+    }
   });
 
   // 2. CSV Question Import Queue
