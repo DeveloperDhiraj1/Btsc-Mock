@@ -12,7 +12,7 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 if (nodeEnv === 'production') {
   dotenv.config({ path: path.join(__dirname, '.env.production') });
 } else {
-  dotenv.config({ path: path.join(__dirname, '.env.production') });
+  dotenv.config({ path: path.join(__dirname, '.env.development') });
 }
 
 const logger = require('./src/utils/logger');
