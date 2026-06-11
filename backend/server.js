@@ -7,6 +7,7 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 // Load environment variables based on NODE_ENV
+
 const nodeEnv = process.env.NODE_ENV || 'development';
 if (nodeEnv === 'production') {
   dotenv.config({ path: path.join(__dirname, '.env.production') });
@@ -33,17 +34,26 @@ const server = http.createServer(app);
 // so req.ip and express-rate-limit see the real client address.
 app.set('trust proxy', 1);
 
-// FRONTEND_URL can be a comma-separated list of allowed origins
-// (e.g. "https://app.example.com,https://preview-xxxx.vercel.app").
-const allowedOrigins = (process.env.FRONTEND_URL)
+// FRONTEND_URL is a comma-separated list of allowed origins. Entries may be
+// exact (https://app.example.com) or contain `*` wildcards
+// (https://*.vercel.app) so Vercel preview deploys don't need re-listing.
+const allowedOriginEntries = (process.env.FRONTEND_URL)
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const originMatchers = allowedOriginEntries.map((entry) => {
+  if (!entry.includes('*')) return (origin) => origin === entry;
+  const pattern = new RegExp(
+    '^' + entry.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'
+  );
+  return (origin) => pattern.test(origin);
+});
+
 const corsOriginMatcher = (origin, callback) => {
   // No origin = same-origin or non-browser caller (curl, server-to-server) — allow.
   if (!origin) return callback(null, true);
-  if (allowedOrigins.includes(origin)) return callback(null, true);
+  if (originMatchers.some((match) => match(origin))) return callback(null, true);
   return callback(new Error(`CORS: origin ${origin} not in allow-list`));
 };
 

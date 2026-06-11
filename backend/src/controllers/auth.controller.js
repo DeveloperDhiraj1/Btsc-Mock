@@ -418,7 +418,7 @@ exports.uploadProfileImage = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload a file' });
     }
     const { uploadToCloudinary } = require('../services/upload.service');
-    const imageUrl = await uploadToCloudinary(req.file);
+    const imageUrl = await uploadToCloudinary(req.file, req);
     
     // Update user record
     await User.findByIdAndUpdate(req.user.id, { profileImage: imageUrl });

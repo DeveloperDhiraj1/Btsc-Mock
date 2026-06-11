@@ -63,13 +63,20 @@ const upload = multer({
 /**
  * Upload a file to Cloudinary (or fallback to local server path)
  * @param {Object} file - Express multer file object
+ * @param {Object} [req] - Express request, used to derive a reachable
+ *   public URL when BACKEND_URL isn't set (e.g. mock mode on Render).
  * @returns {Promise<string>} - The file URL
  */
-const uploadToCloudinary = async (file) => {
+const uploadToCloudinary = async (file, req) => {
+  const localServeUrl = () => {
+    if (process.env.BACKEND_URL) return process.env.BACKEND_URL;
+    if (req) return `${req.protocol}://${req.get('host')}`;
+    return `http://localhost:${process.env.PORT || 5000}`;
+  };
+
   if (useCloudinaryMock) {
     // Return local asset URL (express serves the /uploads route)
-    const serverUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
-    return `${serverUrl}/uploads/${file.filename}`;
+    return `${localServeUrl()}/uploads/${file.filename}`;
   }
 
   try {
@@ -90,9 +97,7 @@ const uploadToCloudinary = async (file) => {
         'this file will be lost on next Render redeploy. Fix Cloudinary credentials.'
       );
     }
-    // fallback to serving local copy if remote fails
-    const serverUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
-    return `${serverUrl}/uploads/${file.filename}`;
+    return `${localServeUrl()}/uploads/${file.filename}`;
   }
 };
 
