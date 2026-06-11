@@ -1,73 +1,78 @@
-const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 const logger = require('../utils/logger');
 
-let transporter;
+let oAuth2Client = null;
 
-const useMock = process.env.USE_EMAIL_MOCK === 'true' || !process.env.EMAIL_USER || !process.env.EMAIL_PASS;
+const useMock = process.env.USE_EMAIL_MOCK === 'true'
+  || !process.env.EMAIL_USER
+  || !process.env.GOOGLE_CLIENT_ID
+  || !process.env.GOOGLE_CLIENT_SECRET
+  || !process.env.GOOGLE_REFRESH_TOKEN;
 
 if (!useMock) {
   try {
-    transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // STARTTLS upgrade after connect
-      requireTLS: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-      tls: {
-        rejectUnauthorized: false
-      }
+    oAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      'https://developers.google.com/oauthplayground'
+    );
+    oAuth2Client.setCredentials({
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN
     });
 
-    transporter.verify((err, success) => {
-      if (err) {
-        logger.error(`Email transporter verification failed: ${err.message}`);
-      } else {
-        logger.info('Email transporter verified successfully');
-      }
-    });
+    oAuth2Client.getAccessToken()
+      .then(() => logger.info('Gmail API OAuth2 client verified successfully'))
+      .catch((err) => logger.error(`Gmail API OAuth2 verification failed: ${err.message}`));
   } catch (err) {
-    logger.error('Failed to initialize email transporter: %O', err);
-    transporter = null;
+    logger.error(`Failed to initialize Gmail OAuth2 client: ${err.message}`);
+    oAuth2Client = null;
   }
 }
 
-/**
- * Send an email
- * @param {string} to - Recipient email
- * @param {string} subject - Email subject
- * @param {string} html - HTML body content
- */
+const encodeRawMessage = (from, to, subject, html) => {
+  const subjectEncoded = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+  const lines = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subjectEncoded}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    html
+  ];
+  return Buffer.from(lines.join('\r\n'))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
 const sendEmail = async (to, subject, html) => {
-  if (useMock || !transporter) {
+  if (useMock || !oAuth2Client) {
     logger.info(`[Email Simulation] To: ${to} | Subject: ${subject}`);
     logger.debug(`[Email Body] ${html}`);
     return { messageId: 'mock-id-' + Date.now() };
   }
 
   try {
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to,
-      subject,
-      html
+    const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
+    const from = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+    const raw = encodeRawMessage(from, to, subject, html);
+
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw }
     });
-    logger.info(`Email sent successfully: ${info.messageId}`);
-    return info;
+
+    logger.info(`Email sent successfully: ${result.data.id}`);
+    return { messageId: result.data.id };
   } catch (error) {
-    logger.error('Nodemailer failed to send email: %O', error);
+    logger.error(`Gmail API failed to send email: ${error.message}`);
     throw error;
   }
 };
 
-/**
- * Generate OTP template
- */
 const getOTPTemplate = (otp, name) => {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
@@ -84,9 +89,6 @@ const getOTPTemplate = (otp, name) => {
   `;
 };
 
-/**
- * Generate Exam Report template
- */
 const getResultTemplate = (name, testTitle, score, totalMarks, accuracy) => {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
