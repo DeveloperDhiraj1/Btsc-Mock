@@ -9,6 +9,8 @@ const useMock = process.env.USE_EMAIL_MOCK === 'true'
   || !process.env.GOOGLE_CLIENT_SECRET
   || !process.env.GOOGLE_REFRESH_TOKEN;
 
+logger.info(`[email.config] useMock=${useMock} | USE_EMAIL_MOCK="${process.env.USE_EMAIL_MOCK}" | EMAIL_USER_set=${!!process.env.EMAIL_USER} | GOOGLE_CLIENT_ID_set=${!!process.env.GOOGLE_CLIENT_ID} | GOOGLE_CLIENT_SECRET_set=${!!process.env.GOOGLE_CLIENT_SECRET} | GOOGLE_REFRESH_TOKEN_set=${!!process.env.GOOGLE_REFRESH_TOKEN}`);
+
 if (!useMock) {
   try {
     oAuth2Client = new google.auth.OAuth2(
