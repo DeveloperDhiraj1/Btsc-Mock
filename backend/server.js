@@ -11,7 +11,7 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 if (nodeEnv === 'production') {
   dotenv.config({ path: path.join(__dirname, '.env.production') });
 } else {
-  dotenv.config({ path: path.join(__dirname, '.env.development') });
+  dotenv.config({ path: path.join(__dirname, '.env.production') });
 }
 
 const logger = require('./src/utils/logger');
@@ -35,7 +35,7 @@ app.set('trust proxy', 1);
 
 // FRONTEND_URL can be a comma-separated list of allowed origins
 // (e.g. "https://app.example.com,https://preview-xxxx.vercel.app").
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+const allowedOrigins = (process.env.FRONTEND_URL)
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -118,11 +118,11 @@ app.use('*', (req, res) => {
   res.status(404).json({ success: false, message: 'API Route Not Found' });
 });
 
-// Global Error Handler Middleware
+// Global Error Handler Middleware 
 app.use(errorHandler);
 
 // Start Server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 
 const startServer = () => {
   connectDB();
