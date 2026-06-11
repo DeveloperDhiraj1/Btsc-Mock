@@ -23,6 +23,12 @@ if (!useCloudinaryMock) {
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
   });
+} else if (process.env.NODE_ENV === 'production') {
+  logger.error(
+    'PROD WARNING: Cloudinary in Simulation Mode. Render disk is ephemeral — ' +
+    'uploads WILL disappear on every redeploy. Set USE_CLOUDINARY_MOCK=false ' +
+    'and provide real CLOUDINARY_* credentials.'
+  );
 } else {
   logger.warn('Running Cloudinary in Simulation Mode (Local Disk Uploads Fallback)');
 }
@@ -78,6 +84,12 @@ const uploadToCloudinary = async (file) => {
     return result.secure_url;
   } catch (error) {
     logger.error('Cloudinary upload error: %O', error);
+    if (process.env.NODE_ENV === 'production') {
+      logger.error(
+        'PROD WARNING: Falling back to local disk for upload — ' +
+        'this file will be lost on next Render redeploy. Fix Cloudinary credentials.'
+      );
+    }
     // fallback to serving local copy if remote fails
     const serverUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
     return `${serverUrl}/uploads/${file.filename}`;

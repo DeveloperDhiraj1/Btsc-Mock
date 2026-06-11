@@ -57,7 +57,7 @@ export default function Login() {
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500">
               <GraduationCap className="h-5 w-5" />
             </span>
-            BTSC Mock Platform
+            StudyNexus Mock Platform
           </Link>
 
           <div className="max-w-xl">
@@ -94,7 +94,7 @@ export default function Login() {
             <div className="mb-8">
               <Link to="/" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 lg:hidden">
                 <GraduationCap className="h-5 w-5 text-primary-500" />
-                BTSC Mock Platform
+                StudyNexus Mock Platform
               </Link>
               <h2 className="text-3xl font-bold text-slate-950 dark:text-white">Login</h2>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

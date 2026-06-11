@@ -29,10 +29,28 @@ const swaggerDocument = require('./src/docs/swagger');
 const app = express();
 const server = http.createServer(app);
 
+// Render/Vercel route traffic through a proxy, so trust the first hop
+// so req.ip and express-rate-limit see the real client address.
+app.set('trust proxy', 1);
+
+// FRONTEND_URL can be a comma-separated list of allowed origins
+// (e.g. "https://app.example.com,https://preview-xxxx.vercel.app").
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOriginMatcher = (origin, callback) => {
+  // No origin = same-origin or non-browser caller (curl, server-to-server) — allow.
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error(`CORS: origin ${origin} not in allow-list`));
+};
+
 // Initialize Socket.io
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: corsOriginMatcher,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -50,7 +68,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: corsOriginMatcher,
   credentials: true
 }));
 
