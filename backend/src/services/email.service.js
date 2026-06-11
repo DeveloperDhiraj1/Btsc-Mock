@@ -9,12 +9,16 @@ if (!useMock) {
   try {
     transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false, // STARTTLS upgrade after connect
+      requireTLS: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       tls: {
         rejectUnauthorized: false
       }
@@ -22,7 +26,7 @@ if (!useMock) {
 
     transporter.verify((err, success) => {
       if (err) {
-        logger.error('Email transporter verification failed: %O', err);
+        logger.error(`Email transporter verification failed: ${err.message}`);
       } else {
         logger.info('Email transporter verified successfully');
       }
