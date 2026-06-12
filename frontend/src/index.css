@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,22 +7,78 @@
 @layer base {
   body {
     font-family: 'Inter', sans-serif;
+    background-color: #05060e;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Glassmorphism Styles */
-.glass {
-  background: rgba(21, 22, 30, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(20, 24, 70, 0.25);
-}
+@layer components {
+  /* Glassmorphism */
+  .glass {
+    background: rgba(21, 22, 30, 0.45);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .glass-dark {
+    background: rgba(10, 12, 26, 0.65);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .glass-card {
+    @apply relative rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
+  }
 
-.glass-dark {
-  background: rgba(35, 19, 95, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, #60a5fa 0%, #a855f7 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-neon-blue transition-all duration-300;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 40px rgba(139,92,246,0.6), 0 0 80px rgba(59,130,246,0.3);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/10;
+  }
+
+  /* Hover lift card */
+  .card-lift {
+    @apply transition-all duration-300;
+  }
+  .card-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 30px 60px -20px rgba(2,6,23,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  /* Shimmer for skeletons */
+  .skeleton-shimmer {
+    @apply relative overflow-hidden bg-white/[0.04];
+  }
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    animation: shimmer 2.5s linear infinite;
+  }
 }
 
 /* Scrollbar styles */

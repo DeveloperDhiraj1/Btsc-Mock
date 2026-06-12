@@ -1,11 +1,18 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const { sendEmail, getOTPTemplate } = require('../services/email.service');
 const { getQueue } = require('../jobs/queue');
+const {
+  generateOTP,
+  hashOTP,
+  compareOTP,
+  isValidEmail,
+  OTP_TTL_MS,
+  OTP_MIN_RESEND_INTERVAL_MS,
+  OTP_MAX_ATTEMPTS
+} = require('../utils/otpGenerator');
 const logger = require('../utils/logger');
 
-const isDevelopmentMode = () => process.env.NODE_ENV !== 'production';
 const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 
 const isStrongPassword = (password = '') => strongPasswordPattern.test(password);
@@ -69,17 +76,41 @@ const sendAuthResponse = (res, user) => {
   });
 };
 
+// Issue a fresh OTP for a user — enforces the 60s resend cooldown.
+// Returns { ok: false, retryAfter } if rate-limited.
+const issueOTP = async (user, purpose) => {
+  const now = Date.now();
+  if (user.lastOtpSent && now - user.lastOtpSent.getTime() < OTP_MIN_RESEND_INTERVAL_MS) {
+    const retryAfter = Math.ceil((OTP_MIN_RESEND_INTERVAL_MS - (now - user.lastOtpSent.getTime())) / 1000);
+    return { ok: false, retryAfter };
+  }
+  const otp = generateOTP();
+  user.otpHash = hashOTP(otp);
+  user.otpExpires = new Date(now + OTP_TTL_MS);
+  user.otpAttempts = 0;
+  user.lastOtpSent = new Date(now);
+  user.otpPurpose = purpose;
+  await user.save();
+  return { ok: true, otp };
+};
+
+const enqueueOtpEmail = async (email, name, otp, subject) => {
+  const html = getOTPTemplate(otp, name);
+  const emailQueue = getQueue('email-queue');
+  await emailQueue.add('sendOTP', { to: email, subject, html });
+};
+
 // Register User
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ success: false, message: 'User already exists' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
     }
-
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
     if (!isStrongPassword(password)) {
       return res.status(400).json({
         success: false,
@@ -87,32 +118,31 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Generate numeric 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const normalizedEmail = email.trim().toLowerCase();
+    const userExists = await User.findOne({ email: normalizedEmail });
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'User already exists' });
+    }
 
-    // Create user
     const user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: normalizedEmail,
       password,
       role: role || 'student',
-      authProvider: 'local',
-      verificationOTP: otp,
-      otpExpiry
+      authProvider: 'local'
     });
 
-    // Send OTP using nodemailer (background job queue)
-    const emailQueue = getQueue('email-queue');
-    const htmlBody = getOTPTemplate(otp, name);
+    const userWithOtpFields = await User.findById(user._id).select('+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
+    const result = await issueOTP(userWithOtpFields, 'verify');
+    if (!result.ok) {
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${result.retryAfter}s before requesting another OTP.`
+      });
+    }
+    await enqueueOtpEmail(normalizedEmail, user.name, result.otp, 'Verify your BTSC Mock Platform Account');
 
-    await emailQueue.add('sendOTP', {
-      to: email,
-      subject: 'Verify your BTSC Mock Platform Account',
-      html: htmlBody
-    });
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Registration successful. OTP sent to your email.'
     });
@@ -126,61 +156,87 @@ exports.verifyEmail = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    }
+    if (!/^\d{6}$/.test(String(otp))) {
+      return res.status(400).json({ success: false, message: 'OTP must be a 6-digit number' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail })
+      .select('+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-
     if (user.isVerified) {
       return res.status(400).json({ success: false, message: 'User is already verified' });
     }
-
-    const acceptsAnyDevOtp = isDevelopmentMode() && /^\d{6}$/.test(otp);
-    if (!acceptsAnyDevOtp && (user.verificationOTP !== otp || new Date() > user.otpExpiry)) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    if (!user.otpHash || !user.otpExpires || user.otpPurpose !== 'verify') {
+      return res.status(400).json({ success: false, message: 'No active OTP. Please request a new one.' });
+    }
+    if (new Date() > user.otpExpires) {
+      user.otpHash = undefined;
+      user.otpExpires = undefined;
+      user.otpAttempts = 0;
+      user.otpPurpose = undefined;
+      await user.save();
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+      user.otpHash = undefined;
+      user.otpExpires = undefined;
+      user.otpAttempts = 0;
+      user.otpPurpose = undefined;
+      await user.save();
+      return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new OTP.' });
     }
 
+    if (!compareOTP(otp, user.otpHash)) {
+      user.otpAttempts += 1;
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    // Single-use: clear immediately on successful verification.
     user.isVerified = true;
-    user.verificationOTP = undefined;
-    user.otpExpiry = undefined;
+    user.otpHash = undefined;
+    user.otpExpires = undefined;
+    user.otpAttempts = 0;
+    user.otpPurpose = undefined;
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Account verified successfully'
-    });
+    return res.status(200).json({ success: true, message: 'Account verified successfully' });
   } catch (error) {
     next(error);
   }
 };
 
-// Resend OTP
+// Resend OTP (for verification flow)
 exports.resendOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
-
-    const user = await User.findOne({ email });
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail })
+      .select('+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationOTP = otp;
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-
-    const emailQueue = getQueue('email-queue');
-    const htmlBody = getOTPTemplate(otp, user.name);
-    await emailQueue.add('resendOTP', {
-      to: email,
-      subject: 'Verify your BTSC Mock Platform Account - Resend OTP',
-      html: htmlBody
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'OTP resent successfully.'
-    });
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: 'User is already verified' });
+    }
+    const result = await issueOTP(user, 'verify');
+    if (!result.ok) {
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${result.retryAfter}s before requesting another OTP.`
+      });
+    }
+    await enqueueOtpEmail(normalizedEmail, user.name, result.otp, 'Your new BTSC Mock verification code');
+    return res.status(200).json({ success: true, message: 'OTP resent successfully.' });
   } catch (error) {
     next(error);
   }
@@ -315,37 +371,35 @@ exports.refreshToken = async (req, res, next) => {
   }
 };
 
-// Forgot Password
+// Forgot Password — issues a single-use, expiring, hashed OTP for password reset
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found with this email' });
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail })
+      .select('+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
+
+    // Always return success to avoid email-enumeration; only send if the user exists.
+    if (user) {
+      const result = await issueOTP(user, 'reset');
+      if (!result.ok) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${result.retryAfter}s before requesting another reset code.`
+        });
+      }
+      await enqueueOtpEmail(normalizedEmail, user.name, result.otp, 'Reset your BTSC Mock Platform password');
+    } else {
+      logger.warn(`[auth.forgotPassword] No account for ${normalizedEmail} — silently dropping request`);
     }
 
-    // Generate temporary OTP for password reset
-    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.resetPasswordToken = resetOtp;
-    user.resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    await user.save();
-
-    const emailQueue = getQueue('email-queue');
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e0e0e0;">
-        <h2>Password Reset OTP</h2>
-        <p>Hello ${user.name},</p>
-        <p>You requested a password reset. Use the OTP below to complete the reset. Valid for 10 minutes.</p>
-        <div style="font-size: 24px; font-weight: bold; background: #eee; padding: 10px; text-align: center;">${resetOtp}</div>
-      </div>
-    `;
-    await emailQueue.add('resetPassword', {
-      to: email,
-      subject: 'Password Reset OTP Request',
-      html: htmlBody
+    return res.status(200).json({
+      success: true,
+      message: 'If an account exists for this email, a reset code has been sent.'
     });
-
-    res.status(200).json({ success: true, message: 'Reset password OTP sent to email' });
   } catch (error) {
     next(error);
   }
@@ -356,6 +410,12 @@ exports.resetPassword = async (req, res, next) => {
   try {
     const { email, otp, newPassword } = req.body;
 
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    if (!/^\d{6}$/.test(String(otp || ''))) {
+      return res.status(400).json({ success: false, message: 'OTP must be a 6-digit number' });
+    }
     if (!isStrongPassword(newPassword)) {
       return res.status(400).json({
         success: false,
@@ -363,23 +423,42 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({
-      email,
-      resetPasswordToken: otp,
-      resetPasswordExpire: { $gt: Date.now() }
-    });
-
-    if (!user) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail })
+      .select('+password +otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
+    if (!user || !user.otpHash || !user.otpExpires || user.otpPurpose !== 'reset') {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset OTP' });
     }
+    if (new Date() > user.otpExpires) {
+      user.otpHash = undefined;
+      user.otpExpires = undefined;
+      user.otpAttempts = 0;
+      user.otpPurpose = undefined;
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Reset OTP has expired. Please request a new one.' });
+    }
+    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+      user.otpHash = undefined;
+      user.otpExpires = undefined;
+      user.otpAttempts = 0;
+      user.otpPurpose = undefined;
+      await user.save();
+      return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new reset code.' });
+    }
+    if (!compareOTP(otp, user.otpHash)) {
+      user.otpAttempts += 1;
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Invalid reset OTP' });
+    }
 
-    // Set new password
     user.password = newPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    user.otpHash = undefined;
+    user.otpExpires = undefined;
+    user.otpAttempts = 0;
+    user.otpPurpose = undefined;
     await user.save();
 
-    res.status(200).json({ success: true, message: 'Password reset successful. Please log in.' });
+    return res.status(200).json({ success: true, message: 'Password reset successful. Please log in.' });
   } catch (error) {
     next(error);
   }

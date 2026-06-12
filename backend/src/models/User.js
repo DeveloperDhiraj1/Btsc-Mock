@@ -96,10 +96,17 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  verificationOTP: String,
-  otpExpiry: Date,
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+  // OTP fields (account verification & password reset)
+  // Stored as SHA-256 hash, never plaintext.
+  otpHash: { type: String, select: false },
+  otpExpires: { type: Date, select: false },
+  otpAttempts: { type: Number, default: 0, select: false },
+  lastOtpSent: { type: Date, select: false },
+  otpPurpose: {
+    type: String,
+    enum: ['verify', 'reset'],
+    select: false
+  },
   bookmarks: [
     {
       type: mongoose.Schema.Types.ObjectId,
