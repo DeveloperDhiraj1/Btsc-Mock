@@ -424,49 +424,47 @@ export default function MockTestInterface() {
       {/* Submit confirmation */}
       <AnimatePresence>
         {showSubmitConfirm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
-              onClick={() => setShowSubmitConfirm(false)}
-            />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            onClick={() => setShowSubmitConfirm(false)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900/95 p-6 shadow-2xl backdrop-blur-xl"
             >
-              <div className="rounded-2xl border border-white/10 bg-ink-900/95 p-6 shadow-2xl backdrop-blur-xl">
-                <div className="mb-5 text-center">
-                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-rose-500/15">
-                    <AlertOctagon className="h-7 w-7 text-rose-400" />
-                  </div>
-                  <h3 className="font-display text-xl font-bold text-white">Submit your exam?</h3>
-                  <p className="mt-2 text-sm text-slate-400">
-                    You've answered <strong className="text-white">{answeredCount}</strong> of {activeTest.questions.length}.
-                    Once submitted, you cannot change your answers.
-                  </p>
+              <div className="mb-5 text-center">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-rose-500/15">
+                  <AlertOctagon className="h-7 w-7 text-rose-400" />
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowSubmitConfirm(false)}
-                    className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.08]"
-                  >
-                    Continue exam
-                  </button>
-                  <button
-                    onClick={() => { setShowSubmitConfirm(false); triggerSubmit(); }}
-                    disabled={submitting}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/30 hover:-translate-y-0.5 disabled:opacity-50"
-                  >
-                    {submitting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Submit now'}
-                  </button>
-                </div>
+                <h3 className="font-display text-xl font-bold text-white">Submit your exam?</h3>
+                <p className="mt-2 text-sm text-slate-400">
+                  You've answered <strong className="text-white">{answeredCount}</strong> of {activeTest.questions.length}.
+                  Once submitted, you cannot change your answers.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSubmitConfirm(false)}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.08]"
+                >
+                  Continue exam
+                </button>
+                <button
+                  onClick={() => { setShowSubmitConfirm(false); triggerSubmit(); }}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/30 hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Submit now'}
+                </button>
               </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

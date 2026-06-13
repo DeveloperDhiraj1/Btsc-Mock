@@ -14,14 +14,18 @@ export default function Leaderboard() {
 
   useEffect(() => {
     setLoading(true);
+    setRankings([]); // Reset so old category's data doesn't linger.
+
     socketRef.current = createSocket();
     socketRef.current.emit('join_leaderboard', { examCategory });
+
     socketRef.current.on('leaderboard_update', ({ examCategory: updatedCategory, rankings: updatedRankings }) => {
-      if (updatedCategory === examCategory) {
+      if (updatedCategory === examCategory && Array.isArray(updatedRankings) && updatedRankings.length > 0) {
         setRankings(updatedRankings);
         setLoading(false);
       }
     });
+
     const fallback = [
       { name: 'Amit Kumar Dev', score: 96.50, rank: 1 },
       { name: 'Rohan Singh', score: 88.00, rank: 2 },
@@ -29,11 +33,17 @@ export default function Leaderboard() {
       { name: 'Saba Parveen', score: 81.50, rank: 4 },
       { name: 'Dhiraj Kumar (You)', score: 78.00, rank: 5 }
     ];
-    setTimeout(() => {
-      setRankings((prev) => prev.length > 0 ? prev : fallback);
+    // If socket doesn't respond with data in 800ms (CORS/socket-down/empty board),
+    // show the seeded leaderboard so the page never looks broken.
+    const t = setTimeout(() => {
+      setRankings((prev) => (prev.length > 0 ? prev : fallback));
       setLoading(false);
-    }, 600);
-    return () => { if (socketRef.current) socketRef.current.disconnect(); };
+    }, 800);
+
+    return () => {
+      clearTimeout(t);
+      if (socketRef.current) socketRef.current.disconnect();
+    };
   }, [examCategory]);
 
   const top3 = rankings.slice(0, 3);

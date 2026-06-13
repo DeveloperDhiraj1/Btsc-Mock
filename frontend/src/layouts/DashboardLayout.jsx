@@ -281,11 +281,16 @@ export default function DashboardLayout({ children }) {
           )}
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8">
+            {/*
+              Page transition uses opacity only — animating transform here creates
+              a containing block, breaking `position: fixed` inside descendant pages
+              (modals would render off-screen).
+            */}
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {children}
             </motion.div>
