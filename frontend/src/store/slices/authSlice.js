@@ -71,11 +71,16 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     logout: (state) => {
+      const hadToken = Boolean(state.token || localStorage.getItem('accessToken'));
       state.user = null;
       state.token = null;
       localStorage.removeItem('accessToken');
       localStorage.removeItem('userInfo');
-      api.post('/auth/logout').catch(() => {});
+      // Only hit the server if we were actually signed in — otherwise the
+      // request 401s and triggers the refresh-token → /login redirect chain.
+      if (hadToken) {
+        api.post('/auth/logout').catch(() => {});
+      }
     },
     clearError: (state) => {
       state.error = null;

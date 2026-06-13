@@ -18,7 +18,8 @@ const AUTH_REFRESH_EXCLUDED_PATHS = [
   '/auth/resend-otp',
   '/auth/refresh-token',
   '/auth/forgot-password',
-  '/auth/reset-password'
+  '/auth/reset-password',
+  '/auth/logout'
 ];
 
 const shouldSkipRefresh = (url = '') => {
