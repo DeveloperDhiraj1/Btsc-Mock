@@ -132,8 +132,7 @@ exports.register = async (req, res, next) => {
       authProvider: 'local'
     });
 
-    const userWithOtpFields = await User.findById(user._id).select('+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose');
-    const result = await issueOTP(userWithOtpFields, 'verify');
+    const result = await issueOTP(user, 'verify');
     if (!result.ok) {
       return res.status(429).json({
         success: false,

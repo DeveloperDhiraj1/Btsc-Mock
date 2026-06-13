@@ -1,4 +1,5 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const { app, server } = require('../server');
 const User = require('../src/models/User');
 
@@ -7,6 +8,9 @@ let mockUserVerified = false;
 
 // Mock User Model static queries
 jest.mock('../src/models/User', () => {
+  const crypto = require('crypto');
+  const otpHash = crypto.createHash('sha256').update('123456').digest('hex');
+
   const mockUser = {
     _id: 'mock_user_id_123',
     name: 'Dhiraj Kumar',
@@ -14,13 +18,24 @@ jest.mock('../src/models/User', () => {
     role: 'student',
     get isVerified() { return mockUserVerified; },
     set isVerified(val) { mockUserVerified = val; },
-    verificationOTP: '123456',
-    otpExpiry: new Date(Date.now() + 500000),
+    otpHash,
+    otpExpires: new Date(Date.now() + 500000),
+    otpAttempts: 0,
+    otpPurpose: 'verify',
+    lastOtpSent: null,
     matchPassword: jest.fn().mockResolvedValue(true),
     save: jest.fn().mockResolvedValue(true)
   };
 
+  const findByIdChainable = {
+    select: jest.fn().mockResolvedValue(mockUser),
+    then: function(resolve, reject) {
+      return Promise.resolve(mockUser).then(resolve, reject);
+    }
+  };
+
   return {
+    __mockUser: mockUser,
     findOne: jest.fn().mockImplementation((query) => {
       const chainable = {
         select: jest.fn().mockImplementation((selectString) => {
@@ -42,7 +57,7 @@ jest.mock('../src/models/User', () => {
       return chainable;
     }),
     create: jest.fn().mockResolvedValue(mockUser),
-    findById: jest.fn().mockResolvedValue(mockUser),
+    findById: jest.fn().mockReturnValue(findByIdChainable),
     findByIdAndUpdate: jest.fn().mockResolvedValue(mockUser)
   };
 });
@@ -91,6 +106,11 @@ describe('Authentication API Endpoint Tests', () => {
     it('should successfully verify student email with correct OTP', async () => {
       mockUserExists = true;
       mockUserVerified = false;
+      // Reset OTP fields — the register test above mutates them via issueOTP().
+      User.__mockUser.otpHash = crypto.createHash('sha256').update('123456').digest('hex');
+      User.__mockUser.otpExpires = new Date(Date.now() + 500000);
+      User.__mockUser.otpPurpose = 'verify';
+      User.__mockUser.otpAttempts = 0;
       const res = await request(app)
         .post('/api/auth/verify-email')
         .send({
