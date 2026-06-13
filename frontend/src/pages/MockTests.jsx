@@ -139,7 +139,7 @@ export default function MockTests() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
               <div className="rounded-2xl border border-white/10 bg-ink-900/95 p-6 shadow-2xl backdrop-blur-xl md:p-8">
                 <div className="mb-5 flex items-center gap-3">
