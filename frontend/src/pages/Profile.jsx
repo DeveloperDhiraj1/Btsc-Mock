@@ -1,209 +1,163 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import api from '../services/api';
 import { updateUserProfileImage } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
-import { Camera, Calendar, Mail, FileText, ArrowRight, Loader2 } from 'lucide-react';
+import {
+  Camera, Calendar, Mail, FileText, ArrowRight, Loader2,
+  Trophy, BookOpen, CreditCard
+} from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
 
 export default function Profile() {
-  const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [myResults, setMyResults] = useState([]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    (async () => {
       try {
         const res = await api.get('/auth/me');
-        if (res.data.success) {
-          setProfile(res.data.data);
-        }
+        if (res.data.success) setProfile(res.data.data);
       } catch (err) {
-        dispatch(addToast({ message: 'Failed to sync profile information', type: 'error' }));
-      } finally {
-        setLoading(false);
-      }
-    };
-    const fetchMyResults = async () => {
+        dispatch(addToast({ message: 'Failed to sync profile', type: 'error' }));
+      } finally { setLoading(false); }
+    })();
+    (async () => {
       try {
         const res = await api.get('/tests/results');
-        if (res.data.success) {
-          setMyResults(res.data.data || []);
-        }
-      } catch (err) {
-        // silent — scorecard list will just stay empty
-      }
-    };
-    fetchProfile();
-    fetchMyResults();
+        if (res.data.success) setMyResults(res.data.data || []);
+      } catch {}
+    })();
   }, [dispatch]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const formData = new FormData();
-    // In our backend, upload CSV uses single('file'). Let's upload profile image using 'file' or write a controller.
-    // Wait! Let's check how the backend serves profile images. We didn't create a separate route for profile image upload,
-    // but we can easily write a handler, or implement a local FileReader logic that saves it, or add an upload route in backend!
-    // Wait, let's write a small route handler on backend if needed, or we can just send it to a general mock handler.
-    // Let's implement a clean profile photo update:
-    // We can POST to `/api/auth/profile-image`!
-    // Let's first make sure that if `/api/auth/profile-image` is called, it parses Multer single file, uploads to Cloudinary (or local),
-    // updates the User document, and returns the URL. This is a very clean, professional detail.
-    // Let's check if the backend route exists. In auth.routes.js we don't have it.
-    // Let's write the profile photo upload endpoint in the backend and frontend to make it fully work!
-    // But first, let's write `Profile.jsx` to call `api.post('/auth/profile-image', formData)`.
     formData.append('file', file);
     setUploading(true);
-
     try {
-      // Stub endpoint check or mock upload fallback
-      const uploadRes = await api.post('/auth/profile-image', formData, {
+      const r = await api.post('/auth/profile-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
-      if (uploadRes.data.success) {
-        const imageUrl = uploadRes.data.url;
-        dispatch(updateUserProfileImage(imageUrl));
-        setProfile(prev => ({ ...prev, profileImage: imageUrl }));
-        dispatch(addToast({ message: 'Avatar updated successfully!', type: 'success' }));
+      if (r.data.success) {
+        dispatch(updateUserProfileImage(r.data.url));
+        setProfile((p) => ({ ...p, profileImage: r.data.url }));
+        dispatch(addToast({ message: 'Avatar updated', type: 'success' }));
       }
     } catch (err) {
-      // Fallback local reader for simulation
       const reader = new FileReader();
       reader.onload = () => {
         dispatch(updateUserProfileImage(reader.result));
-        setProfile(prev => ({ ...prev, profileImage: reader.result }));
-        dispatch(addToast({ message: 'Avatar updated (Local Mock File)', type: 'success' }));
+        setProfile((p) => ({ ...p, profileImage: reader.result }));
+        dispatch(addToast({ message: 'Avatar updated (local)', type: 'success' }));
       };
       reader.readAsDataURL(file);
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   };
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+      <div className="flex h-full items-center justify-center py-32">
+        <Loader2 className="h-10 w-10 animate-spin text-neon-cyan" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 max-w-4xl">
-      
-      {/* Upper profile header */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center space-y-6 md:space-y-0 md:space-x-6">
-        
-        {/* Avatar block */}
-        <div className="relative group shrink-0">
-          <img
-            src={profile?.profileImage}
-            alt={profile?.name}
-            className="w-24 h-24 rounded-full object-cover border-2 border-primary-500 group-hover:opacity-80 transition-opacity"
-          />
-          <label className="absolute bottom-0 right-0 bg-primary-500 text-white p-2 rounded-full cursor-pointer shadow-lg hover:scale-105 transition-transform">
-            <Camera className="w-4 h-4" />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </label>
-          {uploading && (
-            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-white" />
-            </div>
-          )}
-        </div>
-
-        <div className="text-center md:text-left space-y-2">
-          <h2 className="text-2xl font-black">{profile?.name}</h2>
-          <div className="flex flex-wrap gap-4 justify-center md:justify-start text-xs text-gray-400">
-            <div className="flex items-center space-x-1">
-              <Mail className="w-4 h-4" />
-              <span>{profile?.email}</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Calendar className="w-4 h-4" />
-              <span>Joined {new Date(profile?.createdAt).toLocaleDateString()}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Statistics Summary */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-            <h3 className="text-base font-extrabold mb-5">Performance Card</h3>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-400">Average Accuracy:</span>
-                <span className="font-bold text-emerald-500">{profile?.accuracy || 0}%</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-400">Total Exams attempted:</span>
-                <span className="font-bold">{profile?.testsAttempted || 0} attempts</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-400">Subscription status:</span>
-                <span className="font-bold capitalize">{profile?.subscriptionPlan?.planType || 'Free'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* History scorecard lists */}
-        <div className="lg:col-span-2 bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 md:p-8 rounded-3xl shadow-sm">
-          <h3 className="text-base font-extrabold mb-6 flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-primary-500" />
-            <span>Scorecard History Logs</span>
-          </h3>
-
-          {myResults.length > 0 ? (
-            <div className="space-y-3">
-              {myResults.map((r, idx) => (
-                <div
-                  key={r._id}
-                  className="flex items-center justify-between p-4 border border-gray-150 dark:border-gray-800 rounded-2xl hover:border-primary-500 transition-all hover:bg-primary-50/5"
-                >
-                  <div>
-                    <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100">
-                      {r.test?.title || `Attempt ${myResults.length - idx}`}
-                    </h4>
-                    <span className="text-[10px] text-gray-400 font-semibold">
-                      Accuracy: {r.accuracy}% | Score: {r.score}{r.test?.totalMarks ? ` / ${r.test.totalMarks}` : ''}
-                    </span>
-                  </div>
-
-                  <Link
-                    to={`/results/${r._id}`}
-                    className="p-2.5 bg-gray-50 hover:bg-primary-500 dark:bg-dark-200 dark:hover:bg-primary-500 hover:text-white rounded-xl transition-all"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+    <div className="max-w-5xl space-y-6">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <GlassCard className="!p-6 md:!p-8" hover={false}>
+          <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-blue-purple blur-lg opacity-60" />
+              <img
+                src={profile?.profileImage}
+                alt={profile?.name}
+                className="relative h-28 w-28 rounded-2xl object-cover ring-2 ring-white/10"
+              />
+              <label className="absolute -bottom-2 -right-2 cursor-pointer rounded-xl bg-gradient-blue-purple p-2 shadow-neon-blue transition hover:scale-110">
+                <Camera className="h-4 w-4 text-white" />
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </label>
+              {uploading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/60">
+                  <Loader2 className="h-6 w-6 animate-spin text-white" />
                 </div>
-              ))}
+              )}
             </div>
-          ) : (
-            <div className="py-20 text-center text-gray-400 text-sm">
-              No scorecard records found. Start your first mock to see logs.
-            </div>
-          )}
-        </div>
 
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="font-display text-3xl font-bold text-white">{profile?.name}</h1>
+              <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs text-slate-400 md:justify-start">
+                <div className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{profile?.email}</div>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Joined {new Date(profile?.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs">
+                <span className="text-slate-400">Plan:</span>
+                <span className={`font-bold ${profile?.subscriptionPlan?.planType === 'premium' ? 'text-amber-400' : 'text-slate-300'}`}>
+                  {(profile?.subscriptionPlan?.planType || 'Free').toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      </motion.div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          { label: 'Avg accuracy', value: `${profile?.accuracy || 0}%`, icon: Trophy, color: 'text-emerald-400' },
+          { label: 'Tests attempted', value: profile?.testsAttempted || 0, icon: BookOpen, color: 'text-neon-cyan' },
+          { label: 'Subscription', value: profile?.subscriptionPlan?.planType || 'Free', icon: CreditCard, color: 'text-neon-purple', capitalize: true },
+        ].map((s) => (
+          <GlassCard key={s.label} className="!p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{s.label}</p>
+                <p className={`mt-2 font-display text-2xl font-bold ${s.color} ${s.capitalize ? 'capitalize' : ''}`}>{s.value}</p>
+              </div>
+              <s.icon className={`h-7 w-7 ${s.color} opacity-40`} />
+            </div>
+          </GlassCard>
+        ))}
       </div>
 
+      <GlassCard className="!p-6" hover={false}>
+        <div className="mb-5 flex items-center gap-2">
+          <FileText className="h-4 w-4 text-neon-cyan" />
+          <h3 className="font-display text-lg font-semibold text-white">Scorecard history</h3>
+        </div>
+        {myResults.length > 0 ? (
+          <div className="space-y-2">
+            {myResults.map((r) => (
+              <Link
+                key={r._id}
+                to={`/results/${r._id}`}
+                className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-4 transition hover:border-neon-blue/30 hover:bg-white/[0.05]"
+              >
+                <div>
+                  <p className="font-semibold text-white">{r.test?.title || 'Mock attempt'}</p>
+                  <p className="text-xs text-slate-400">
+                    Accuracy: <span className="text-emerald-400">{r.accuracy}%</span> · Score: {r.score}
+                    {r.test?.totalMarks ? ` / ${r.test.totalMarks}` : ''}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-500" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-sm text-slate-500">No scorecards yet. Start a mock to see history.</div>
+        )}
+      </GlassCard>
     </div>
   );
 }

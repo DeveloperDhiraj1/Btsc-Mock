@@ -20,12 +20,11 @@ if (hasFirebaseConfig) {
   import('./services/firebase');
 }
 
-// Initialise dark mode matching local storage settings
-if (localStorage.getItem('darkMode') === 'true' || 
-    (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-  document.documentElement.classList.add('dark');
-} else {
+// Dark theme is the default premium experience; users can toggle off explicitly.
+if (localStorage.getItem('darkMode') === 'false') {
   document.documentElement.classList.remove('dark');
+} else {
+  document.documentElement.classList.add('dark');
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

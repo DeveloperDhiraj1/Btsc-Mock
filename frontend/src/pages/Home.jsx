@@ -21,9 +21,9 @@ const fadeUp = {
 };
 
 const stats = [
-  { value: 12000, suffix: '+', label: 'Active Students' },
-  { value: 1500, suffix: '+', label: 'Mock Tests' },
-  { value: 45000, suffix: '+', label: 'AI Review Sessions' },
+  { value: 1000, suffix: '+', label: 'Active Students' },
+  { value: 500, suffix: '+', label: 'Mock Tests' },
+  { value: 5000, suffix: '+', label: 'AI Review Sessions' },
   { value: 98, suffix: '%', label: 'User Satisfaction' },
 ];
 
@@ -68,8 +68,8 @@ const features = [
 
 const testimonials = [
   {
-    name: 'Priya Sharma',
-    role: 'BTSC JE Aspirant',
+    name: 'Priyanshu Singh',
+    role: 'BTSC Aspirant',
     text: 'The AI weak-topic heatmap completely changed how I revise. Jumped from 58% to 84% accuracy in three weeks.',
     rating: 5,
   },
@@ -108,7 +108,7 @@ export default function Home() {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">StudyNexus</p>
-            <h1 className="font-display text-base font-bold text-white">BTSC Mock Platform</h1>
+            <h1 className="font-display text-base font-bold text-white">Platform</h1>
           </div>
         </motion.div>
 
@@ -137,7 +137,7 @@ export default function Home() {
             >
               <Sparkles className="h-3.5 w-3.5 text-neon-cyan" />
               <span className="text-xs font-medium uppercase tracking-[0.25em] text-slate-300">
-                Powered by Gemini AI
+                Powered by StudyNexus
               </span>
             </motion.div>
 
@@ -146,7 +146,7 @@ export default function Home() {
               className="font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl"
             >
               Make your exam prep{' '}
-              <span className="text-gradient">smarter with AI</span>
+              <span className="text-gradient">smarter with StudyNexus</span>
             </motion.h2>
 
             <motion.p

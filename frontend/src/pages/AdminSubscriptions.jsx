@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
 import { useDispatch } from 'react-redux';
+import api from '../services/api';
 import { addToast } from '../store/slices/uiSlice';
 import {
   Receipt, Loader2, RefreshCw, ChevronLeft, ChevronRight,
-  CheckCircle2, XCircle, Clock, IndianRupee, AlertTriangle
+  CheckCircle2, Clock, IndianRupee
 } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+import AnimatedCounter from '../components/ui/AnimatedCounter';
 
 const DEFAULT_AVATAR = 'https://res.cloudinary.com/mock-cloud/image/upload/v1/default-avatar.png';
-
 const STATUS_TABS = [
   { key: '', label: 'All' },
   { key: 'active', label: 'Active' },
@@ -31,169 +32,119 @@ export default function AdminSubscriptions() {
     try {
       const params = new URLSearchParams({ page, limit: 20 });
       if (status) params.append('status', status);
-      const res = await api.get(`/payments/admin/subscriptions?${params.toString()}`);
+      const res = await api.get(`/payments/admin/subscriptions?${params}`);
       if (res.data.success) {
-        setSubs(res.data.data);
-        setSummary(res.data.summary || []);
-        setTotal(res.data.total);
+        setSubs(res.data.data); setSummary(res.data.summary || []); setTotal(res.data.total);
       }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to load subscriptions', type: 'error' }));
-    } finally {
-      setLoading(false);
-    }
+    } catch { dispatch(addToast({ message: 'Failed to load', type: 'error' })); }
+    finally { setLoading(false); }
   };
-
   useEffect(() => { fetchSubs(); }, [page, status]);
 
   const handleStatusUpdate = async (id, newStatus) => {
-    const label = newStatus === 'active' ? 'force-activate' : 'mark as expired';
+    const label = newStatus === 'active' ? 'activate' : 'expire';
     if (!window.confirm(`Are you sure you want to ${label} this subscription?`)) return;
     try {
       const res = await api.put(`/payments/admin/subscriptions/${id}`, { status: newStatus });
-      if (res.data.success) {
-        dispatch(addToast({ message: 'Subscription updated', type: 'success' }));
-        fetchSubs();
-      }
-    } catch (err) {
-      dispatch(addToast({ message: 'Update failed', type: 'error' }));
-    }
+      if (res.data.success) { dispatch(addToast({ message: 'Updated', type: 'success' })); fetchSubs(); }
+    } catch { dispatch(addToast({ message: 'Update failed', type: 'error' })); }
   };
 
-  const getStatusPill = (s) => {
-    const map = {
-      active: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      pending: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-      expired: 'bg-gray-500/10 text-gray-600 dark:text-gray-400',
-      failed: 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-    };
-    return map[s] || 'bg-gray-200 text-gray-600';
-  };
+  const statusPill = (s) => ({
+    active: 'bg-emerald-500/15 text-emerald-400',
+    pending: 'bg-amber-500/15 text-amber-400',
+    expired: 'bg-slate-500/15 text-slate-400',
+    failed: 'bg-rose-500/15 text-rose-400'
+  }[s] || 'bg-slate-500/15 text-slate-400');
 
-  const totals = summary.reduce((acc, s) => {
-    acc.count += s.count;
-    acc.revenue += s.revenue;
-    return acc;
-  }, { count: 0, revenue: 0 });
-  const activeStat = summary.find(s => s._id === 'active') || { count: 0, revenue: 0 };
-  const pendingStat = summary.find(s => s._id === 'pending') || { count: 0, revenue: 0 };
+  const totals = summary.reduce((acc, s) => ({ count: acc.count + s.count, revenue: acc.revenue + s.revenue }), { count: 0, revenue: 0 });
+  const activeStat = summary.find((s) => s._id === 'active') || { count: 0, revenue: 0 };
+  const pendingStat = summary.find((s) => s._id === 'pending') || { count: 0, revenue: 0 };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-3 text-rose-500">
-          <div className="p-3 bg-rose-500/10 dark:bg-rose-500/20 rounded-2xl">
-            <Receipt className="w-8 h-8" />
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-neon-purple/15 p-3 text-neon-purple">
+            <Receipt className="h-7 w-7" />
           </div>
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-              Subscriptions & Billing
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-              Review payments, activate plans manually, and expire stale orders.
-            </p>
+            <h1 className="font-display text-3xl font-bold text-white">Subscriptions & <span className="text-gradient">billing</span></h1>
+            <p className="mt-1 text-sm text-slate-400">Review payments, manage plan activation.</p>
           </div>
         </div>
-        <button
-          onClick={fetchSubs}
-          className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-dark-200 dark:hover:bg-dark-100 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold self-start md:self-auto"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Sync</span>
+        <button onClick={fetchSubs} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08]">
+          <RefreshCw className="h-4 w-4" /> Sync
         </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Orders" value={totals.count} icon={<Receipt />} color="indigo" />
-        <StatCard label="Active Subs" value={activeStat.count} icon={<CheckCircle2 />} color="emerald" />
-        <StatCard label="Pending" value={pendingStat.count} icon={<Clock />} color="amber" />
-        <StatCard label="Revenue (₹)" value={activeStat.revenue.toLocaleString('en-IN')} icon={<IndianRupee />} color="rose" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total orders" value={totals.count} icon={Receipt} gradient="from-neon-blue to-neon-cyan" />
+        <StatCard label="Active subs" value={activeStat.count} icon={CheckCircle2} gradient="from-emerald-400 to-emerald-600" />
+        <StatCard label="Pending" value={pendingStat.count} icon={Clock} gradient="from-amber-400 to-orange-500" />
+        <StatCard label="Revenue (₹)" value={activeStat.revenue.toLocaleString('en-IN')} icon={IndianRupee} gradient="from-rose-500 to-neon-purple" rawValue />
       </div>
 
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl shadow-sm">
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
-          {STATUS_TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => { setStatus(t.key); setPage(1); }}
-              className={`px-5 py-3 text-xs font-bold border-b-2 transition-all ${
-                status === t.key
-                  ? 'border-rose-500 text-rose-600 dark:text-rose-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-white'
-              }`}
-            >
+      <GlassCard className="!p-0 overflow-hidden" hover={false}>
+        <div className="flex overflow-x-auto border-b border-white/5">
+          {STATUS_TABS.map((t) => (
+            <button key={t.key} onClick={() => { setStatus(t.key); setPage(1); }}
+              className={`border-b-2 px-5 py-3 text-xs font-bold transition ${
+                status === t.key ? 'border-neon-purple text-neon-purple' : 'border-transparent text-slate-500 hover:text-white'
+              }`}>
               {t.label}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-rose-500" /></div>
+          <div className="py-20 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-cyan" /></div>
         ) : subs.length === 0 ? (
-          <div className="p-16 text-center text-sm text-gray-400">
-            <Receipt className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            No subscriptions found for this filter.
+          <div className="py-16 text-center text-sm text-slate-500">
+            <Receipt className="mx-auto mb-3 h-10 w-10 text-slate-600" /> No subscriptions in this filter.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-50 dark:bg-dark-250">
+            <table className="min-w-full text-sm">
+              <thead className="border-b border-white/5 bg-white/[0.02] text-[10px] uppercase tracking-[0.2em] text-slate-500">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Customer</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Plan</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Order ID</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Amount</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-left">Created</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
+                  <th className="px-6 py-3 text-left">Customer</th>
+                  <th className="px-6 py-3 text-left">Plan</th>
+                  <th className="px-6 py-3 text-left">Order ID</th>
+                  <th className="px-6 py-3 text-left">Amount</th>
+                  <th className="px-6 py-3 text-left">Status</th>
+                  <th className="px-6 py-3 text-left">Created</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-dark-300">
-                {subs.map(s => (
-                  <tr key={s._id} className="hover:bg-gray-50/50 dark:hover:bg-dark-250/30">
+              <tbody className="divide-y divide-white/5">
+                {subs.map((s) => (
+                  <tr key={s._id} className="text-slate-300 hover:bg-white/[0.03]">
                     <td className="px-6 py-3">
-                      <div className="flex items-center space-x-3">
-                        <img
-                          src={s.user?.profileImage || DEFAULT_AVATAR}
-                          alt=""
-                          onError={e => { e.target.src = DEFAULT_AVATAR; }}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
+                      <div className="flex items-center gap-3">
+                        <img src={s.user?.profileImage || DEFAULT_AVATAR} alt="" onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                          className="h-8 w-8 rounded-lg object-cover ring-1 ring-white/10" />
                         <div>
-                          <span className="font-semibold text-sm text-gray-850 dark:text-white block">{s.user?.name || '—'}</span>
-                          <span className="text-xs text-gray-400 block">{s.user?.email}</span>
+                          <p className="font-semibold text-white">{s.user?.name || '—'}</p>
+                          <p className="text-xs text-slate-500">{s.user?.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{s.planName}</td>
-                    <td className="px-6 py-3 text-xs font-mono text-gray-500">{s.orderId.slice(0, 22)}...</td>
-                    <td className="px-6 py-3 text-sm font-bold text-gray-850 dark:text-white">₹{s.amount}</td>
+                    <td className="px-6 py-3">{s.planName}</td>
+                    <td className="px-6 py-3 font-mono text-xs text-slate-500">{s.orderId.slice(0, 20)}...</td>
+                    <td className="px-6 py-3 font-bold text-white">₹{s.amount}</td>
                     <td className="px-6 py-3">
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${getStatusPill(s.status)}`}>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] ${statusPill(s.status)}`}>
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-xs text-gray-500">
-                      {new Date(s.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </td>
-                    <td className="px-6 py-3 text-right text-xs font-semibold space-x-3">
+                    <td className="px-6 py-3 text-xs text-slate-500">{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td className="px-6 py-3 text-right text-xs font-bold space-x-3">
                       {s.status !== 'active' && (
-                        <button
-                          onClick={() => handleStatusUpdate(s._id, 'active')}
-                          className="text-emerald-600 hover:text-emerald-800"
-                        >
-                          Activate
-                        </button>
+                        <button onClick={() => handleStatusUpdate(s._id, 'active')} className="text-emerald-400 hover:text-emerald-300">Activate</button>
                       )}
                       {s.status === 'active' && (
-                        <button
-                          onClick={() => handleStatusUpdate(s._id, 'expired')}
-                          className="text-rose-600 hover:text-rose-800"
-                        >
-                          Expire
-                        </button>
+                        <button onClick={() => handleStatusUpdate(s._id, 'expired')} className="text-rose-400 hover:text-rose-300">Expire</button>
                       )}
                     </td>
                   </tr>
@@ -204,47 +155,37 @@ export default function AdminSubscriptions() {
         )}
 
         {total > 20 && (
-          <div className="p-5 border-t border-gray-100 dark:border-gray-850 flex items-center justify-between">
-            <span className="text-xs text-gray-500 font-semibold">Page {page} of {Math.ceil(total / 20)}</span>
-            <div className="flex items-center space-x-2">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="p-2 bg-white dark:bg-dark-300 border border-gray-250 dark:border-gray-800 disabled:opacity-50 rounded-xl"
-              >
-                <ChevronLeft className="w-4 h-4" />
+          <div className="flex items-center justify-between border-t border-white/5 p-4 text-xs">
+            <span className="font-semibold text-slate-500">Page {page} of {Math.ceil(total / 20)}</span>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
+                <ChevronLeft className="h-4 w-4" />
               </button>
-              <button
-                disabled={page * 20 >= total}
-                onClick={() => setPage(page + 1)}
-                className="p-2 bg-white dark:bg-dark-300 border border-gray-250 dark:border-gray-800 disabled:opacity-50 rounded-xl"
-              >
-                <ChevronRight className="w-4 h-4" />
+              <button disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="rounded-lg border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }
 
-function StatCard({ label, value, icon, color }) {
-  const colorMap = {
-    indigo: 'bg-indigo-500/10 text-indigo-500',
-    emerald: 'bg-emerald-500/10 text-emerald-500',
-    amber: 'bg-amber-500/10 text-amber-500',
-    rose: 'bg-rose-500/10 text-rose-500'
-  };
+function StatCard({ label, value, icon: Icon, gradient, rawValue }) {
   return (
-    <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-5 rounded-3xl shadow-sm flex items-center justify-between">
-      <div>
-        <span className="text-[11px] font-semibold text-gray-400 uppercase block">{label}</span>
-        <h3 className="text-xl md:text-2xl font-black mt-1 text-gray-850 dark:text-white">{value}</h3>
+    <GlassCard className="!p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+          <p className="mt-2 font-display text-2xl font-bold text-white">
+            {rawValue ? value : <AnimatedCounter to={Number(value) || 0} />}
+          </p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-neon-blue`}>
+          <Icon className="h-5 w-5 text-white" />
+        </div>
       </div>
-      <div className={`p-3 rounded-2xl ${colorMap[color]}`}>
-        {React.cloneElement(icon, { className: 'w-5 h-5' })}
-      </div>
-    </div>
+    </GlassCard>
   );
 }

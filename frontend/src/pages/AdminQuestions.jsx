@@ -1,26 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import api from '../services/api';
 import { addToast } from '../store/slices/uiSlice';
-import { useDispatch } from 'react-redux';
 import {
-  Sparkles, FileSpreadsheet, ListPlus, Loader2,
-  Trash2, HelpCircle, ChevronLeft, ChevronRight, CheckCircle2,
+  Sparkles, FileSpreadsheet, ListPlus, Loader2, Trash2, ChevronLeft, ChevronRight,
   Pencil, X, Save
 } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+import GradientButton from '../components/ui/GradientButton';
 
 export default function AdminQuestions() {
   const dispatch = useDispatch();
-
   const [questions, setQuestions] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // CSV State
   const [csvFile, setCsvFile] = useState(null);
   const [uploadingCsv, setUploadingCsv] = useState(false);
 
-  // AI Generation State
   const [aiSubject, setAiSubject] = useState('');
   const [aiTopic, setAiTopic] = useState('');
   const [aiDifficulty, setAiDifficulty] = useState('medium');
@@ -28,7 +26,6 @@ export default function AdminQuestions() {
   const [aiExamType, setAiExamType] = useState('BTSC');
   const [generatingAI, setGeneratingAI] = useState(false);
 
-  // Edit modal state
   const [editing, setEditing] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -36,105 +33,63 @@ export default function AdminQuestions() {
     setLoading(true);
     try {
       const res = await api.get(`/questions?page=${page}&limit=10`);
-      if (res.data.success) {
-        setQuestions(res.data.data);
-        setTotal(res.data.total);
-      }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to fetch question pool', type: 'error' }));
-    } finally {
-      setLoading(false);
-    }
+      if (res.data.success) { setQuestions(res.data.data); setTotal(res.data.total); }
+    } catch { dispatch(addToast({ message: 'Failed to fetch', type: 'error' })); }
+    finally { setLoading(false); }
   };
-
-  useEffect(() => {
-    fetchQuestions();
-  }, [page]);
+  useEffect(() => { fetchQuestions(); }, [page]);
 
   const handleCsvUpload = async (e) => {
     e.preventDefault();
-    if (!csvFile) {
-      dispatch(addToast({ message: 'Please select a CSV file first', type: 'error' }));
-      return;
-    }
-
+    if (!csvFile) { dispatch(addToast({ message: 'Select a CSV first', type: 'error' })); return; }
     const formData = new FormData();
     formData.append('file', csvFile);
     setUploadingCsv(true);
-
     try {
       const res = await api.post('/questions/upload-csv', formData);
       if (res.data.success) {
-        dispatch(addToast({ message: res.data.message || 'CSV questions queued for bulk import!', type: 'success' }));
+        dispatch(addToast({ message: res.data.message || 'CSV imported', type: 'success' }));
         setCsvFile(null);
         setTimeout(fetchQuestions, 1000);
       }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'CSV file upload failed';
-      dispatch(addToast({ message: errorMessage, type: 'error' }));
-      console.error('CSV upload error response:', err.response?.data || err.message);
-    } finally {
-      setUploadingCsv(false);
-    }
+    } catch (err) { dispatch(addToast({ message: err.response?.data?.message || 'Upload failed', type: 'error' })); }
+    finally { setUploadingCsv(false); }
   };
 
   const handleAIGenerate = async (e) => {
     e.preventDefault();
-    if (!aiSubject || !aiTopic) {
-      dispatch(addToast({ message: 'Please specify subject and topic', type: 'error' }));
-      return;
-    }
-
+    if (!aiSubject || !aiTopic) { dispatch(addToast({ message: 'Specify subject and topic', type: 'error' })); return; }
     setGeneratingAI(true);
     try {
       const res = await api.post('/ai/generate-questions', {
-        subject: aiSubject,
-        topic: aiTopic,
-        difficulty: aiDifficulty,
-        questionCount: parseInt(aiCount),
-        examType: aiExamType,
-        saveToDb: true
+        subject: aiSubject, topic: aiTopic, difficulty: aiDifficulty,
+        questionCount: parseInt(aiCount), examType: aiExamType, saveToDb: true
       });
       if (res.data.success) {
-        dispatch(addToast({ message: `Gemini successfully generated and saved ${aiCount} questions to pool!`, type: 'success' }));
-        setAiSubject('');
-        setAiTopic('');
+        dispatch(addToast({ message: `Saved ${aiCount} questions`, type: 'success' }));
+        setAiSubject(''); setAiTopic('');
         fetchQuestions();
       }
-    } catch (err) {
-      dispatch(addToast({ message: 'Gemini question generation failed', type: 'error' }));
-    } finally {
-      setGeneratingAI(false);
-    }
+    } catch { dispatch(addToast({ message: 'Generation failed', type: 'error' })); }
+    finally { setGeneratingAI(false); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this question permanently?')) return;
-
     try {
       const res = await api.delete(`/questions/${id}`);
-      if (res.data.success) {
-        dispatch(addToast({ message: 'Question deleted successfully', type: 'success' }));
-        fetchQuestions();
-      }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to delete question', type: 'error' }));
-    }
+      if (res.data.success) { dispatch(addToast({ message: 'Deleted', type: 'success' })); fetchQuestions(); }
+    } catch { dispatch(addToast({ message: 'Delete failed', type: 'error' })); }
   };
 
-  const openEdit = (q) => {
-    setEditing({
-      _id: q._id,
-      subject: q.subject || '',
-      topic: q.topic || '',
-      examType: q.examType || 'BTSC',
-      difficulty: q.difficulty || 'medium',
-      question: q.question || '',
-      options: q.options && q.options.length === 4 ? [...q.options] : ['', '', '', ''],
-      correctAnswer: q.correctAnswer ?? 0,
-      explanation: q.explanation || ''
-    });
-  };
+  const openEdit = (q) => setEditing({
+    _id: q._id,
+    subject: q.subject || '', topic: q.topic || '',
+    examType: q.examType || 'BTSC', difficulty: q.difficulty || 'medium',
+    question: q.question || '',
+    options: q.options && q.options.length === 4 ? [...q.options] : ['', '', '', ''],
+    correctAnswer: q.correctAnswer ?? 0, explanation: q.explanation || ''
+  });
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
@@ -142,205 +97,107 @@ export default function AdminQuestions() {
     setSavingEdit(true);
     try {
       const res = await api.put(`/questions/${editing._id}`, {
-        subject: editing.subject,
-        topic: editing.topic,
-        examType: editing.examType,
-        difficulty: editing.difficulty,
-        question: editing.question,
-        options: editing.options,
-        correctAnswer: parseInt(editing.correctAnswer),
-        explanation: editing.explanation,
-        editedByAdmin: true
+        ...editing, correctAnswer: parseInt(editing.correctAnswer), editedByAdmin: true
       });
-      if (res.data.success) {
-        dispatch(addToast({ message: 'Question updated', type: 'success' }));
-        setEditing(null);
-        fetchQuestions();
-      }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to update question', type: 'error' }));
-    } finally {
-      setSavingEdit(false);
-    }
+      if (res.data.success) { dispatch(addToast({ message: 'Updated', type: 'success' })); setEditing(null); fetchQuestions(); }
+    } catch { dispatch(addToast({ message: 'Update failed', type: 'error' })); }
+    finally { setSavingEdit(false); }
   };
 
   return (
-    <div className="space-y-8">
-      
-      {/* Header */}
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">Question Bank</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage platform-wide questions, import Excel/CSV files, or trigger AI generator flows</p>
+        <h1 className="font-display text-3xl font-bold">Question <span className="text-gradient">bank</span></h1>
+        <p className="mt-2 text-sm text-slate-400">Manage platform-wide questions, import CSV, or use AI generator.</p>
       </div>
 
-      {/* Grid forms */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* CSV Upload card */}
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 md:p-8 rounded-3xl shadow-sm space-y-5">
-          <h3 className="text-base font-extrabold flex items-center space-x-2">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
-            <span>Bulk CSV Import</span>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 flex items-center gap-2 font-display text-base font-bold text-white">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-400" /> Bulk CSV import
           </h3>
-          <p className="text-gray-450 text-xs leading-relaxed">
-            Format spreadsheet with columns: <strong>subject, topic, question, option1, option2, option3, option4, correctAnswer (0-3), explanation, difficulty, examType</strong>
+          <p className="mb-4 text-xs leading-relaxed text-slate-400">
+            Columns: <strong className="text-slate-300">subject, topic, question, option1..4, correctAnswer (0-3), explanation, difficulty, examType</strong>
           </p>
-
           <form onSubmit={handleCsvUpload} className="space-y-4">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setCsvFile(e.target.files[0])}
-              className="w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-gray-100 dark:file:bg-dark-200 file:text-gray-700 dark:file:text-gray-300 hover:file:opacity-90 cursor-pointer"
-              required
-            />
-            <button
-              type="submit"
-              disabled={uploadingCsv}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all"
-            >
-              {uploadingCsv ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <span>Upload spreadsheet</span>}
+            <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files[0])} required
+              className="w-full text-xs text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-white/[0.06] file:px-4 file:py-2.5 file:text-xs file:font-bold file:text-white hover:file:bg-white/[0.1]" />
+            <button type="submit" disabled={uploadingCsv}
+              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 disabled:opacity-50">
+              {uploadingCsv ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Upload spreadsheet'}
             </button>
           </form>
-        </div>
+        </GlassCard>
 
-        {/* AI Bulk generator card */}
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 md:p-8 rounded-3xl shadow-sm space-y-5">
-          <h3 className="text-base font-extrabold flex items-center space-x-2">
-            <Sparkles className="w-5 h-5 text-indigo-500" />
-            <span>AI Question Builder</span>
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 flex items-center gap-2 font-display text-base font-bold text-white">
+            <Sparkles className="h-4 w-4 text-neon-purple" /> AI builder
           </h3>
-
           <form onSubmit={handleAIGenerate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Subject</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Physics"
-                  value={aiSubject}
-                  onChange={(e) => setAiSubject(e.target.value)}
-                  required
-                  className="w-full px-4.5 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:text-white transition-all text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Topic</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Gravity"
-                  value={aiTopic}
-                  onChange={(e) => setAiTopic(e.target.value)}
-                  required
-                  className="w-full px-4.5 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:text-white transition-all text-xs"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FieldSm label="Subject" value={aiSubject} onChange={setAiSubject} placeholder="Physics" />
+              <FieldSm label="Topic" value={aiTopic} onChange={setAiTopic} placeholder="Gravity" />
             </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Exam Type</label>
-                <select
-                  value={aiExamType}
-                  onChange={(e) => setAiExamType(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:text-white text-xs"
-                >
-                  <option value="BTSC">BTSC JE</option>
-                  <option value="SSC">SSC JE</option>
-                  <option value="BPSC">BPSC AE</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Difficulty</label>
-                <select
-                  value={aiDifficulty}
-                  onChange={(e) => setAiDifficulty(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:text-white text-xs"
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Count</label>
-                <select
-                  value={aiCount}
-                  onChange={(e) => setAiCount(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:text-white text-xs"
-                >
-                  <option value="5">5 Qs</option>
-                  <option value="10">10 Qs</option>
-                </select>
-              </div>
+            <div className="grid grid-cols-3 gap-3">
+              <SelectSm label="Exam" value={aiExamType} onChange={setAiExamType} options={[
+                { val: 'BTSC', label: 'BTSC' }, { val: 'SSC', label: 'SSC' }, { val: 'BPSC', label: 'BPSC' }
+              ]} />
+              <SelectSm label="Difficulty" value={aiDifficulty} onChange={setAiDifficulty} options={[
+                { val: 'easy', label: 'Easy' }, { val: 'medium', label: 'Medium' }, { val: 'hard', label: 'Hard' }
+              ]} />
+              <SelectSm label="Count" value={aiCount} onChange={setAiCount} options={[
+                { val: '5', label: '5 Qs' }, { val: '10', label: '10 Qs' }
+              ]} />
             </div>
-
-            <button
-              type="submit"
-              disabled={generatingAI}
-              className="w-full bg-indigo-650 hover:bg-indigo-700 disabled:bg-indigo-500/50 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all shadow-sm"
-            >
-              {generatingAI ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <span>Compile AI Questions</span>}
-            </button>
+            <GradientButton type="submit" disabled={generatingAI} className="!w-full">
+              {generatingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Compile AI questions'}
+            </GradientButton>
           </form>
-        </div>
-
+        </GlassCard>
       </div>
 
-      {/* Table view list */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 dark:border-gray-850 flex items-center justify-between">
-          <h3 className="font-extrabold text-base flex items-center space-x-2">
-            <ListPlus className="w-5 h-5 text-primary-500" />
-            <span>Active Question Repository</span>
+      <GlassCard className="!p-0 overflow-hidden" hover={false}>
+        <div className="flex items-center justify-between border-b border-white/5 p-6">
+          <h3 className="flex items-center gap-2 font-display text-base font-bold text-white">
+            <ListPlus className="h-4 w-4 text-neon-cyan" /> Question repository
           </h3>
+          <span className="text-xs text-slate-500">{total} total</span>
         </div>
-
         {loading ? (
-          <div className="p-20 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-          </div>
-        ) : questions.length > 0 ? (
+          <div className="py-20 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-cyan" /></div>
+        ) : questions.length === 0 ? (
+          <div className="py-16 text-center text-sm text-slate-500">Empty bank. Upload CSV or build with AI.</div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-150 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  <th className="px-6 py-4.5">Q. Text</th>
-                  <th className="px-6 py-4.5">Exam</th>
-                  <th className="px-6 py-4.5">Subject</th>
-                  <th className="px-6 py-4.5">Topic</th>
-                  <th className="px-6 py-4.5">Difficulty</th>
-                  <th className="px-6 py-4.5 text-right">Action</th>
+            <table className="min-w-full text-sm">
+              <thead className="border-b border-white/5 bg-white/[0.02] text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                <tr>
+                  <th className="px-6 py-3 text-left">Question</th>
+                  <th className="px-6 py-3 text-left">Exam</th>
+                  <th className="px-6 py-3 text-left">Subject</th>
+                  <th className="px-6 py-3 text-left">Difficulty</th>
+                  <th className="px-6 py-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-850 text-xs">
+              <tbody className="divide-y divide-white/5">
                 {questions.map((q) => (
-                  <tr key={q._id} className="hover:bg-gray-50 dark:hover:bg-dark-200">
-                    <td className="px-6 py-4.5 font-medium text-gray-800 dark:text-gray-150 max-w-xs truncate">{q.question}</td>
-                    <td className="px-6 py-4.5">{q.examType}</td>
-                    <td className="px-6 py-4.5 font-semibold">{q.subject}</td>
-                    <td className="px-6 py-4.5">{q.topic}</td>
-                    <td className="px-6 py-4.5">
-                      <span className={`px-2 py-0.5 rounded-md font-bold capitalize text-[10px] ${
-                        q.difficulty === 'easy' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : q.difficulty === 'hard' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-950/20'
-                      }`}>
-                        {q.difficulty}
-                      </span>
+                  <tr key={q._id} className="text-slate-300 hover:bg-white/[0.03]">
+                    <td className="max-w-xs truncate px-6 py-3 font-medium text-white">{q.question}</td>
+                    <td className="px-6 py-3 text-xs">{q.examType}</td>
+                    <td className="px-6 py-3 text-xs">{q.subject} <span className="text-slate-500">· {q.topic}</span></td>
+                    <td className="px-6 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] ${
+                        q.difficulty === 'easy' ? 'bg-emerald-500/15 text-emerald-400'
+                        : q.difficulty === 'hard' ? 'bg-rose-500/15 text-rose-400'
+                        : 'bg-amber-500/15 text-amber-400'
+                      }`}>{q.difficulty}</span>
                     </td>
-                    <td className="px-6 py-4.5 text-right">
-                      <button
-                        onClick={() => openEdit(q)}
-                        className="text-indigo-500 hover:text-indigo-600 p-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-all mr-1"
-                      >
-                        <Pencil className="w-4 h-4" />
+                    <td className="px-6 py-3 text-right">
+                      <button onClick={() => openEdit(q)} className="mr-2 rounded-lg p-2 text-neon-cyan hover:bg-white/10">
+                        <Pencil className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(q._id)}
-                        className="text-rose-500 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                      <button onClick={() => handleDelete(q._id)} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10">
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
                   </tr>
@@ -348,181 +205,110 @@ export default function AdminQuestions() {
               </tbody>
             </table>
           </div>
-        ) : (
-          <div className="p-20 text-center text-gray-400 text-sm">
-            Question bank is empty. Upload a CSV spreadsheet or build using Gemini above.
-          </div>
         )}
-
-        {/* Pagination footer */}
         {total > 10 && (
-          <div className="p-5 bg-gray-50 dark:bg-dark-200 border-t border-gray-100 dark:border-gray-850 flex items-center justify-between">
-            <span className="text-[11px] text-gray-450 font-bold">Showing {questions.length} of {total} questions</span>
-            <div className="flex items-center space-x-2">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="p-2 bg-white dark:bg-dark-300 border border-gray-250 dark:border-gray-800 disabled:opacity-50 rounded-xl"
-              >
-                <ChevronLeft className="w-4 h-4" />
+          <div className="flex items-center justify-between border-t border-white/5 p-4 text-xs">
+            <span className="font-semibold text-slate-500">{questions.length} of {total}</span>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
+                <ChevronLeft className="h-4 w-4" />
               </button>
-              <button
-                disabled={page * 10 >= total}
-                onClick={() => setPage(page + 1)}
-                className="p-2 bg-white dark:bg-dark-300 border border-gray-250 dark:border-gray-800 disabled:opacity-50 rounded-xl"
-              >
-                <ChevronRight className="w-4 h-4" />
+              <button disabled={page * 10 >= total} onClick={() => setPage(page + 1)} className="rounded-lg border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         )}
-      </div>
+      </GlassCard>
 
-      {/* Edit Question Modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <form
-            onSubmit={handleSaveEdit}
-            className="bg-white dark:bg-dark-300 max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-300">
-              <h3 className="font-extrabold text-gray-900 dark:text-white flex items-center space-x-2">
-                <Pencil className="w-5 h-5 text-indigo-500" />
-                <span>Edit Question</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setEditing(null)}>
+          <form onSubmit={handleSaveEdit}
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-900/95 shadow-2xl backdrop-blur-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-ink-900/95 p-6">
+              <h3 className="flex items-center gap-2 font-display text-lg font-bold text-white">
+                <Pencil className="h-4 w-4 text-neon-cyan" /> Edit question
               </h3>
-              <button type="button" onClick={() => setEditing(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-xl">
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setEditing(null)} className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white">
+                <X className="h-4 w-4" />
               </button>
             </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Subject</label>
-                  <input
-                    type="text"
-                    value={editing.subject}
-                    onChange={e => setEditing({ ...editing, subject: e.target.value })}
-                    required
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:text-white text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Topic</label>
-                  <input
-                    type="text"
-                    value={editing.topic}
-                    onChange={e => setEditing({ ...editing, topic: e.target.value })}
-                    required
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:text-white text-sm"
-                  />
-                </div>
+            <div className="space-y-4 p-6">
+              <div className="grid grid-cols-2 gap-3">
+                <FieldSm label="Subject" value={editing.subject} onChange={(v) => setEditing({ ...editing, subject: v })} />
+                <FieldSm label="Topic" value={editing.topic} onChange={(v) => setEditing({ ...editing, topic: v })} />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Exam Type</label>
-                  <select
-                    value={editing.examType}
-                    onChange={e => setEditing({ ...editing, examType: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl dark:text-white text-sm"
-                  >
-                    <option value="BTSC">BTSC JE</option>
-                    <option value="SSC">SSC JE</option>
-                    <option value="BPSC">BPSC AE</option>
-                    <option value="Railway">Railway RRB</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Difficulty</label>
-                  <select
-                    value={editing.difficulty}
-                    onChange={e => setEditing({ ...editing, difficulty: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl dark:text-white text-sm"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <SelectSm label="Exam" value={editing.examType} onChange={(v) => setEditing({ ...editing, examType: v })} options={[
+                  { val: 'BTSC', label: 'BTSC' }, { val: 'SSC', label: 'SSC' }, { val: 'BPSC', label: 'BPSC' }, { val: 'Railway', label: 'Railway' }
+                ]} />
+                <SelectSm label="Difficulty" value={editing.difficulty} onChange={(v) => setEditing({ ...editing, difficulty: v })} options={[
+                  { val: 'easy', label: 'Easy' }, { val: 'medium', label: 'Medium' }, { val: 'hard', label: 'Hard' }
+                ]} />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Question</label>
-                <textarea
-                  value={editing.question}
-                  onChange={e => setEditing({ ...editing, question: e.target.value })}
-                  required
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:text-white text-sm"
-                />
-              </div>
-
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Options (pick the correct one)</label>
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Question</label>
+                <textarea value={editing.question} onChange={(e) => setEditing({ ...editing, question: e.target.value })} required rows={3}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white outline-none focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Options (radio = correct)</label>
                 {editing.options.map((opt, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="correct"
-                      checked={parseInt(editing.correctAnswer) === idx}
+                    <input type="radio" name="correct" checked={parseInt(editing.correctAnswer) === idx}
                       onChange={() => setEditing({ ...editing, correctAnswer: idx })}
-                      className="accent-emerald-500 w-4 h-4 flex-shrink-0"
-                    />
-                    <input
-                      type="text"
-                      value={opt}
-                      onChange={e => {
-                        const next = [...editing.options];
-                        next[idx] = e.target.value;
+                      className="h-4 w-4 accent-emerald-500" />
+                    <input type="text" value={opt} required placeholder={`Option ${idx + 1}`}
+                      onChange={(e) => {
+                        const next = [...editing.options]; next[idx] = e.target.value;
                         setEditing({ ...editing, options: next });
                       }}
-                      required
-                      placeholder={`Option ${idx + 1}`}
-                      className={`flex-1 px-4 py-2 bg-gray-50 dark:bg-dark-200 border rounded-xl text-sm dark:text-white ${
-                        parseInt(editing.correctAnswer) === idx
-                          ? 'border-emerald-500 ring-1 ring-emerald-500/30'
-                          : 'border-gray-250 dark:border-gray-800'
-                      }`}
-                    />
+                      className={`flex-1 rounded-xl border bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15 ${
+                        parseInt(editing.correctAnswer) === idx ? 'border-emerald-500/50' : 'border-white/10'
+                      }`} />
                   </div>
                 ))}
               </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Explanation</label>
-                <textarea
-                  value={editing.explanation}
-                  onChange={e => setEditing({ ...editing, explanation: e.target.value })}
-                  required
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-dark-200 border border-gray-250 dark:border-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:text-white text-sm"
-                />
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Explanation</label>
+                <textarea value={editing.explanation} onChange={(e) => setEditing({ ...editing, explanation: e.target.value })} required rows={3}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white outline-none focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15" />
               </div>
             </div>
-
-            <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-dark-300">
-              <button
-                type="button"
-                onClick={() => setEditing(null)}
-                className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={savingEdit}
-                className="flex items-center space-x-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold"
-              >
-                {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Save Changes</span>
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-white/5 bg-ink-900/95 p-4">
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white">Cancel</button>
+              <button type="submit" disabled={savingEdit}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-blue-purple px-5 py-2 text-sm font-bold text-white shadow-neon-blue disabled:opacity-50">
+                {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save changes
               </button>
             </div>
           </form>
         </div>
       )}
+    </div>
+  );
+}
 
+function FieldSm({ label, value, onChange, placeholder }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</label>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required
+        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15" />
+    </div>
+  );
+}
+
+function SelectSm({ label, value, onChange, options }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white outline-none focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15">
+        {options.map((o) => <option key={o.val} value={o.val} className="bg-ink-900">{o.label}</option>)}
+      </select>
     </div>
   );
 }

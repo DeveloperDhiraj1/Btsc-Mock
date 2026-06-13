@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { createSocket } from '../services/socket';
-import { Trophy, Medal, Star, Compass, Loader2 } from 'lucide-react';
+import { Trophy, Medal, Star, Loader2, Crown } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+
+const CATEGORIES = ['BTSC', 'SSC', 'Railway', 'BPSC', 'Polytechnic'];
 
 export default function Leaderboard() {
   const [examCategory, setExamCategory] = useState('BTSC');
@@ -8,144 +12,141 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(false);
   const socketRef = useRef(null);
 
-  // Fallback mock top rankings if no database socket entries exist
-  const getMockRankings = (cat) => {
-    return [
-      { name: 'Amit Kumar Dev', score: 96.50, rank: 1 },
-      { name: 'Rohan Singh', score: 88.00, rank: 2 },
-      { name: 'Vikram Sinha', score: 84.75, rank: 3 },
-      { name: 'Saba Parveen', score: 81.50, rank: 4 },
-      { name: 'Dhiraj Kumar (You)', score: 78.00, rank: 5 }
-    ];
-  };
-
   useEffect(() => {
     setLoading(true);
-    // Connect to WebSocket server
     socketRef.current = createSocket();
-
     socketRef.current.emit('join_leaderboard', { examCategory });
-
     socketRef.current.on('leaderboard_update', ({ examCategory: updatedCategory, rankings: updatedRankings }) => {
       if (updatedCategory === examCategory) {
         setRankings(updatedRankings);
         setLoading(false);
       }
     });
-
-    // Set fallback initially to prevent empty screen
+    const fallback = [
+      { name: 'Amit Kumar Dev', score: 96.50, rank: 1 },
+      { name: 'Rohan Singh', score: 88.00, rank: 2 },
+      { name: 'Vikram Sinha', score: 84.75, rank: 3 },
+      { name: 'Saba Parveen', score: 81.50, rank: 4 },
+      { name: 'Dhiraj Kumar (You)', score: 78.00, rank: 5 }
+    ];
     setTimeout(() => {
-      setRankings(prev => prev.length > 0 ? prev : getMockRankings(examCategory));
+      setRankings((prev) => prev.length > 0 ? prev : fallback);
       setLoading(false);
     }, 600);
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
+    return () => { if (socketRef.current) socketRef.current.disconnect(); };
   }, [examCategory]);
 
-  const categories = ['BTSC', 'SSC', 'Railway', 'BPSC', 'Polytechnic'];
+  const top3 = rankings.slice(0, 3);
+  const rest = rankings.slice(3);
 
   return (
-    <div className="space-y-8">
-      
-      {/* Header */}
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Topper Rankings</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Real-time leaderboard rankings computed across active students</p>
+        <h1 className="font-display text-3xl font-bold">
+          <span className="text-gradient">Topper</span> rankings
+        </h1>
+        <p className="mt-2 text-sm text-slate-400">Real-time leaderboard across active students.</p>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-800 pb-4">
-        {categories.map((cat) => (
+      <div className="flex flex-wrap gap-2">
+        {CATEGORIES.map((cat) => (
           <button
             key={cat}
             onClick={() => setExamCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
               examCategory === cat
-                ? 'bg-primary-500 text-white shadow-md shadow-primary-500/10'
-                : 'bg-white dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-150'
+                ? 'bg-gradient-blue-purple text-white shadow-neon-blue'
+                : 'border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]'
             }`}
           >
-            {cat} Exam Board
+            {cat}
           </button>
         ))}
       </div>
 
-      {/* Leaderboard content */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl shadow-sm overflow-hidden max-w-2xl w-full">
-        
-        {/* Table Head */}
-        <div className="bg-gray-50 dark:bg-dark-200 px-6 py-4 flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-150 dark:border-gray-800">
-          <div className="flex items-center space-x-6">
-            <span className="w-12 text-center">Rank</span>
-            <span>Candidate Name</span>
-          </div>
-          <span>Percentile / Marks</span>
+      {/* Podium */}
+      {top3.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {top3.map((u, i) => {
+            const styles = [
+              { gradient: 'from-amber-400 to-orange-500', icon: Crown, label: '1st' },
+              { gradient: 'from-slate-300 to-slate-500', icon: Medal, label: '2nd' },
+              { gradient: 'from-orange-600 to-amber-800', icon: Medal, label: '3rd' }
+            ][i];
+            const Icon = styles.icon;
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+              >
+                <GlassCard className={`!p-5 ${i === 0 ? 'sm:-translate-y-2' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${styles.gradient} shadow-neon-blue`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <span className="font-display text-xl font-bold text-white">{u.score.toFixed(2)}</span>
+                  </div>
+                  <p className="mt-4 font-display text-base font-bold text-white">{u.name}</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{styles.label} place</p>
+                </GlassCard>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      <GlassCard className="!p-0 overflow-hidden" hover={false}>
+        <div className="grid grid-cols-12 border-b border-white/5 bg-white/[0.02] px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+          <div className="col-span-2">Rank</div>
+          <div className="col-span-7">Candidate</div>
+          <div className="col-span-3 text-right">Score</div>
         </div>
 
-        {/* Table Body */}
         {loading ? (
-          <div className="p-20 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <div className="py-20 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-cyan" />
           </div>
-        ) : rankings.length > 0 ? (
-          <div className="divide-y divide-gray-100 dark:divide-gray-850">
-            {rankings.map((userRank, index) => {
-              const isFirst = userRank.rank === 1;
-              const isSecond = userRank.rank === 2;
-              const isThird = userRank.rank === 3;
-
-              let rankBadge = <span className="font-bold text-gray-550">{userRank.rank}</span>;
-              if (isFirst) rankBadge = <Medal className="w-6 h-6 text-amber-500 fill-amber-500" />;
-              else if (isSecond) rankBadge = <Medal className="w-6 h-6 text-slate-400 fill-slate-400" />;
-              else if (isThird) rankBadge = <Medal className="w-6 h-6 text-amber-700 fill-amber-700" />;
-
+        ) : rest.length === 0 ? (
+          <div className="py-12 text-center text-sm text-slate-500">No more rankings yet.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {rest.map((u, i) => {
+              const isYou = u.name.includes('(You)');
               return (
-                <div 
-                  key={index}
-                  className={`px-6 py-4.5 flex items-center justify-between transition-colors ${
-                    userRank.name.includes('(You)') 
-                      ? 'bg-primary-500/5 dark:bg-primary-500/5 font-semibold text-primary-500' 
-                      : 'hover:bg-gray-50 dark:hover:bg-dark-200'
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  className={`grid grid-cols-12 items-center px-6 py-3 text-sm transition ${
+                    isYou ? 'bg-neon-blue/10' : 'hover:bg-white/[0.03]'
                   }`}
                 >
-                  <div className="flex items-center space-x-6">
-                    <div className="w-12 flex items-center justify-center shrink-0">
-                      {rankBadge}
-                    </div>
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-150">
-                      {userRank.name}
-                    </span>
+                  <div className="col-span-2 font-mono text-base font-bold text-slate-400">#{u.rank}</div>
+                  <div className="col-span-7">
+                    <span className={`font-semibold ${isYou ? 'text-neon-cyan' : 'text-white'}`}>{u.name}</span>
                   </div>
-
-                  <span className="text-sm font-extrabold font-mono text-gray-700 dark:text-white">
-                    {userRank.score.toFixed(2)}
-                  </span>
-                </div>
+                  <div className="col-span-3 text-right font-mono font-bold text-white">{u.score.toFixed(2)}</div>
+                </motion.div>
               );
             })}
           </div>
-        ) : (
-          <div className="p-20 text-center text-gray-450 text-sm">
-            Attempt mocks to register the first board topper!
-          </div>
         )}
-      </div>
+      </GlassCard>
 
-      {/* Info card */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl max-w-2xl w-full flex items-start space-x-4">
-        <Star className="w-6 h-6 text-amber-500 shrink-0" />
-        <div className="space-y-1">
-          <h4 className="font-bold text-sm">Rank Calculation Rules</h4>
-          <p className="text-gray-400 text-xs leading-relaxed">
-            Leaderboard rankings are sorted dynamically by highest scores obtained. In case of identical score values, the candidate with the faster attempt time is ranked higher.
-          </p>
+      <GlassCard className="!p-5">
+        <div className="flex items-start gap-3">
+          <Star className="h-5 w-5 shrink-0 text-amber-400" />
+          <div>
+            <p className="font-display text-sm font-bold text-white">Rank calculation</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Sorted by highest score. On ties, faster attempt time wins.
+            </p>
+          </div>
         </div>
-      </div>
-
+      </GlassCard>
     </div>
   );
 }

@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
 import { useDispatch } from 'react-redux';
+import api from '../services/api';
 import { addToast } from '../store/slices/uiSlice';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-  BarChart3, Loader2, RefreshCw, TrendingUp, Users,
-  IndianRupee, Award, Activity
+  BarChart3, Loader2, RefreshCw, TrendingUp, Users, IndianRupee, Award, Activity
 } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
 
-const PIE_COLORS = ['#f43f5e', '#6366f1', '#10b981', '#f59e0b', '#0ea5e9', '#8b5cf6'];
+const PIE_COLORS = ['#3b82f6', '#a855f7', '#22d3ee', '#ec4899', '#f59e0b', '#10b981'];
 const DEFAULT_AVATAR = 'https://res.cloudinary.com/mock-cloud/image/upload/v1/default-avatar.png';
+
+const TOOLTIP_STYLE = {
+  background: 'rgba(15,18,38,0.95)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '12px',
+  color: '#fff'
+};
 
 export default function AdminAnalytics() {
   const dispatch = useDispatch();
@@ -24,237 +31,181 @@ export default function AdminAnalytics() {
     try {
       const res = await api.get('/tests/admin/analytics');
       if (res.data.success) setData(res.data.data);
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to load analytics', type: 'error' }));
-    } finally {
-      setLoading(false);
-    }
+    } catch { dispatch(addToast({ message: 'Failed to load analytics', type: 'error' })); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchAnalytics(); }, []);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
-        <span className="text-gray-500 text-sm font-medium">Crunching analytics data...</span>
+      <div className="flex flex-col items-center justify-center gap-3 py-32">
+        <Loader2 className="h-10 w-10 animate-spin text-neon-cyan" />
+        <p className="text-sm text-slate-400">Crunching analytics...</p>
       </div>
     );
   }
-
   if (!data) return null;
 
-  const userTrendData = data.userTrend.map(d => ({ date: d._id.slice(5), users: d.count }));
-  const subTrendData = data.submissionsTrend.map(d => ({
-    date: d._id.slice(5),
-    submissions: d.count,
-    accuracy: Math.round(d.avgAccuracy || 0)
+  const userTrendData = data.userTrend.map((d) => ({ date: d._id.slice(5), users: d.count }));
+  const subTrendData = data.submissionsTrend.map((d) => ({
+    date: d._id.slice(5), submissions: d.count, accuracy: Math.round(d.avgAccuracy || 0)
   }));
-  const categoryData = data.categoryBreakdown.map(c => ({
-    name: c._id,
-    tests: c.tests,
-    active: c.active
-  }));
+  const categoryData = data.categoryBreakdown.map((c) => ({ name: c._id, tests: c.tests, active: c.active }));
 
   const kpis = [
-    {
-      label: 'Active Subscriptions',
-      value: data.revenue.activeSubs,
-      icon: <Users className="w-5 h-5" />,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10'
-    },
-    {
-      label: 'Total Revenue (INR)',
-      value: `₹${data.revenue.total.toLocaleString('en-IN')}`,
-      icon: <IndianRupee className="w-5 h-5" />,
-      color: 'text-emerald-500',
-      bg: 'bg-emerald-500/10'
-    },
-    {
-      label: 'Top Accuracy',
-      value: data.topPerformers[0]?.accuracy ? `${data.topPerformers[0].accuracy}%` : '—',
-      icon: <Award className="w-5 h-5" />,
-      color: 'text-amber-500',
-      bg: 'bg-amber-500/10'
-    },
-    {
-      label: 'Total Submissions (30d)',
-      value: data.submissionsTrend.reduce((s, d) => s + d.count, 0),
-      icon: <Activity className="w-5 h-5" />,
-      color: 'text-rose-500',
-      bg: 'bg-rose-500/10'
-    }
+    { label: 'Active subs', value: data.revenue.activeSubs, icon: Users, gradient: 'from-neon-blue to-neon-cyan' },
+    { label: 'Revenue', value: `₹${data.revenue.total.toLocaleString('en-IN')}`, icon: IndianRupee, gradient: 'from-emerald-400 to-emerald-600' },
+    { label: 'Top accuracy', value: data.topPerformers[0]?.accuracy ? `${data.topPerformers[0].accuracy}%` : '—', icon: Award, gradient: 'from-amber-400 to-orange-500' },
+    { label: 'Submissions (30d)', value: data.submissionsTrend.reduce((s, d) => s + d.count, 0), icon: Activity, gradient: 'from-rose-500 to-neon-purple' }
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-3 text-rose-500">
-          <div className="p-3 bg-rose-500/10 dark:bg-rose-500/20 rounded-2xl">
-            <BarChart3 className="w-8 h-8" />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-neon-purple/15 p-3 text-neon-purple">
+            <BarChart3 className="h-7 w-7" />
           </div>
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-              Platform Analytics
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-              Realtime insights across registrations, attempts, revenue and category mix.
-            </p>
+            <h1 className="font-display text-3xl font-bold text-white">Platform <span className="text-gradient">analytics</span></h1>
+            <p className="mt-1 text-sm text-slate-400">Real-time insights across registrations, attempts, revenue.</p>
           </div>
         </div>
-        <button
-          onClick={fetchAnalytics}
-          className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-dark-200 dark:hover:bg-dark-100 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold transition-all self-start md:self-auto"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Refresh</span>
+        <button onClick={fetchAnalytics}
+          className="inline-flex items-center gap-2 self-start rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08] md:self-auto">
+          <RefreshCw className="h-4 w-4" /> Refresh
         </button>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi, i) => (
-          <div
-            key={i}
-            className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-5 rounded-3xl shadow-sm flex items-center justify-between"
-          >
-            <div>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase block">{kpi.label}</span>
-              <h3 className="text-xl md:text-2xl font-black mt-1 text-gray-850 dark:text-white">{kpi.value}</h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((k) => (
+          <GlassCard key={k.label} className="!p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{k.label}</p>
+                <p className="mt-2 font-display text-2xl font-bold text-white">{k.value}</p>
+              </div>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${k.gradient} shadow-neon-blue`}>
+                <k.icon className="h-5 w-5 text-white" />
+              </div>
             </div>
-            <div className={`p-3 rounded-2xl ${kpi.bg} ${kpi.color}`}>{kpi.icon}</div>
-          </div>
+          </GlassCard>
         ))}
       </div>
 
-      {/* Trends */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center space-x-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-extrabold text-gray-900 dark:text-white">New Registrations (30d)</h3>
-          </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 flex items-center gap-2 font-display text-base font-bold text-white">
+            <TrendingUp className="h-4 w-4 text-emerald-400" /> New registrations (30d)
+          </h3>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={userTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-              <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} />
-              <YAxis stroke="#9ca3af" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-              <Line type="monotone" dataKey="users" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="date" stroke="#64748b" fontSize={11} />
+              <YAxis stroke="#64748b" fontSize={11} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Line type="monotone" dataKey="users" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: '#10b981' }} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </GlassCard>
 
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center space-x-2 mb-4">
-            <Activity className="w-5 h-5 text-rose-500" />
-            <h3 className="font-extrabold text-gray-900 dark:text-white">Submissions & Avg Accuracy (30d)</h3>
-          </div>
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 flex items-center gap-2 font-display text-base font-bold text-white">
+            <Activity className="h-4 w-4 text-rose-400" /> Submissions & accuracy (30d)
+          </h3>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={subTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-              <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} />
-              <YAxis stroke="#9ca3af" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-              <Legend />
-              <Line type="monotone" dataKey="submissions" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="accuracy" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="date" stroke="#64748b" fontSize={11} />
+              <YAxis stroke="#64748b" fontSize={11} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Line type="monotone" dataKey="submissions" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 3, fill: '#f43f5e' }} />
+              <Line type="monotone" dataKey="accuracy" stroke="#a855f7" strokeWidth={2.5} dot={{ r: 3, fill: '#a855f7' }} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </GlassCard>
       </div>
 
-      {/* Distribution + Category */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-          <h3 className="font-extrabold text-gray-900 dark:text-white mb-4">Score Distribution</h3>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 font-display text-base font-bold text-white">Score distribution</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data.scoreDistribution}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-              <XAxis dataKey="bucket" stroke="#9ca3af" fontSize={11} />
-              <YAxis stroke="#9ca3af" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-              <Bar dataKey="count" fill="#6366f1" radius={[8, 8, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="bucket" stroke="#64748b" fontSize={11} />
+              <YAxis stroke="#64748b" fontSize={11} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Bar dataKey="count" fill="url(#barGradient)" radius={[8, 8, 0, 0]} />
+              <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a855f7" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </GlassCard>
 
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-          <h3 className="font-extrabold text-gray-900 dark:text-white mb-4">Exam Category Mix</h3>
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 font-display text-base font-bold text-white">Exam category mix</h3>
           {categoryData.length === 0 ? (
-            <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">No test categories yet</div>
+            <div className="flex h-[260px] items-center justify-center text-sm text-slate-500">No categories yet</div>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="tests"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  innerRadius={55}
-                  paddingAngle={3}
-                >
-                  {categoryData.map((entry, idx) => (
-                    <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                  ))}
+                <Pie data={categoryData} dataKey="tests" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={55} paddingAngle={3}>
+                  {categoryData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                <Legend />
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
               </PieChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </GlassCard>
       </div>
 
-      {/* Top performers */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm">
-        <h3 className="font-extrabold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
-          <Award className="w-5 h-5 text-amber-500" />
-          <span>Top 10 Performers</span>
+      <GlassCard className="!p-6" hover={false}>
+        <h3 className="mb-4 flex items-center gap-2 font-display text-base font-bold text-white">
+          <Award className="h-4 w-4 text-amber-400" /> Top 10 performers
         </h3>
         {data.topPerformers.length === 0 ? (
-          <div className="text-sm text-gray-400 py-8 text-center">No candidate scores recorded yet.</div>
+          <div className="py-8 text-center text-sm text-slate-500">No candidate scores yet.</div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-50 dark:bg-dark-250">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
                 <tr>
-                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase text-left">#</th>
-                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase text-left">Candidate</th>
-                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase text-left">Tests</th>
-                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase text-left">Accuracy</th>
+                  <th className="px-4 py-3 text-left">#</th>
+                  <th className="px-4 py-3 text-left">Candidate</th>
+                  <th className="px-4 py-3 text-left">Tests</th>
+                  <th className="px-4 py-3 text-left">Accuracy</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-dark-300">
+              <tbody className="divide-y divide-white/5">
                 {data.topPerformers.map((u, i) => (
-                  <tr key={u._id}>
-                    <td className="px-6 py-3 text-sm font-bold text-gray-500">{i + 1}</td>
-                    <td className="px-6 py-3">
-                      <div className="flex items-center space-x-3">
-                      <img
-                        src={u.profileImage || DEFAULT_AVATAR}
-                        alt={u.name}
-                        onError={e => { e.target.src = DEFAULT_AVATAR; }}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                  <tr key={u._id} className="text-slate-300 hover:bg-white/[0.03]">
+                    <td className="px-4 py-3 font-bold text-slate-500">#{i + 1}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <img src={u.profileImage || DEFAULT_AVATAR} alt="" onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                          className="h-8 w-8 rounded-lg object-cover ring-1 ring-white/10" />
                         <div>
-                          <span className="font-semibold text-sm text-gray-850 dark:text-white block">{u.name}</span>
-                          <span className="text-xs text-gray-400 block">{u.email}</span>
+                          <p className="font-semibold text-white">{u.name}</p>
+                          <p className="text-xs text-slate-500">{u.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{u.testsAttempted}</td>
-                    <td className="px-6 py-3 text-sm font-semibold text-emerald-600">{u.accuracy}%</td>
+                    <td className="px-4 py-3">{u.testsAttempted}</td>
+                    <td className="px-4 py-3 font-bold text-emerald-400">{u.accuracy}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }

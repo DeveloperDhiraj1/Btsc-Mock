@@ -1,392 +1,301 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { motion } from 'framer-motion';
 import api from '../services/api';
 import { addToast } from '../store/slices/uiSlice';
-import { useDispatch } from 'react-redux';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { 
-  Trophy, Clock, Sparkles, ChevronDown, ChevronUp, Loader2
+import {
+  Trophy, Clock, Sparkles, ChevronDown, ChevronUp, Loader2,
+  Bookmark, ArrowLeft
 } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+import GradientButton from '../components/ui/GradientButton';
 
 export default function ResultPage() {
   const { resultId } = useParams();
   const dispatch = useDispatch();
-
-  // Track expanded question state and active AI explanations
-  const [expandedQ, setExpandedQ] = useState(null);
-  const [aiExplanations, setAiExplanations] = useState({}); // { questionId: explanationText }
-  const [aiExplaining, setAiExplaining] = useState({}); // { questionId: boolean }
-
-  return (
-    <ResultPageContent 
-      resultId={resultId} 
-      dispatch={dispatch} 
-      expandedQ={expandedQ} 
-      setExpandedQ={setExpandedQ}
-      aiExplanations={aiExplanations}
-      setAiExplanations={setAiExplanations}
-      aiExplaining={aiExplaining}
-      setAiExplaining={setAiExplaining}
-    />
-  );
-}
-
-// Subcomponent to organize result loading
-function ResultPageContent({ 
-  resultId, dispatch, expandedQ, setExpandedQ, 
-  aiExplanations, setAiExplanations, aiExplaining, setAiExplaining 
-}) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bookmarkedList, setBookmarkedList] = useState([]);
+  const [expandedQ, setExpandedQ] = useState(null);
+  const [aiExplanations, setAiExplanations] = useState({});
+  const [aiExplaining, setAiExplaining] = useState({});
 
   useEffect(() => {
-    const getResultDetails = async () => {
+    (async () => {
       try {
         const res = await api.get(`/tests/results/${resultId}`);
-        if (res.data.success) {
-          setResult(res.data.data);
-        }
+        if (res.data.success) setResult(res.data.data);
       } catch (err) {
-        dispatch(addToast({
-          message: err?.response?.data?.message || 'Error retrieving scorecard details',
-          type: 'error'
-        }));
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    const fetchBookmarks = async () => {
+        dispatch(addToast({ message: err?.response?.data?.message || 'Error retrieving scorecard', type: 'error' }));
+      } finally { setLoading(false); }
+    })();
+    (async () => {
       try {
         const res = await api.get('/auth/bookmarks');
-        if (res.data.success) {
-          setBookmarkedList(res.data.data.map(b => b._id || b));
-        }
-      } catch (e) {}
-    };
-
-    getResultDetails();
-    fetchBookmarks();
+        if (res.data.success) setBookmarkedList(res.data.data.map((b) => b._id || b));
+      } catch {}
+    })();
   }, [resultId, dispatch]);
 
-  const handleToggleBookmark = async (questionId) => {
-    const isBookmarked = bookmarkedList.includes(questionId);
+  const handleToggleBookmark = async (qId) => {
+    const isB = bookmarkedList.includes(qId);
     try {
-      if (isBookmarked) {
-        await api.delete(`/auth/bookmarks/${questionId}`);
-        setBookmarkedList(prev => prev.filter(id => id !== questionId));
-        dispatch(addToast({ message: 'Removed from bookmarks', type: 'success' }));
+      if (isB) {
+        await api.delete(`/auth/bookmarks/${qId}`);
+        setBookmarkedList((p) => p.filter((id) => id !== qId));
+        dispatch(addToast({ message: 'Removed', type: 'success' }));
       } else {
-        await api.post('/auth/bookmarks', { questionId });
-        setBookmarkedList(prev => [...prev, questionId]);
-        dispatch(addToast({ message: 'Question added to bookmarks!', type: 'success' }));
+        await api.post('/auth/bookmarks', { questionId: qId });
+        setBookmarkedList((p) => [...p, qId]);
+        dispatch(addToast({ message: 'Bookmarked', type: 'success' }));
       }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to update bookmark', type: 'error' }));
+    } catch {
+      dispatch(addToast({ message: 'Bookmark failed', type: 'error' }));
     }
   };
 
-  const handleFetchExplanation = async (question, options, correctIdx, selectedIdx, questionId) => {
-    if (aiExplanations[questionId]) {
-      setExpandedQ(expandedQ === questionId ? null : questionId);
+  const handleFetchExplanation = async (question, options, correctIdx, selectedIdx, qId) => {
+    if (aiExplanations[qId]) {
+      setExpandedQ(expandedQ === qId ? null : qId);
       return;
     }
-
-    setExpandedQ(questionId);
-    setAiExplaining(prev => ({ ...prev, [questionId]: true }));
-
+    setExpandedQ(qId);
+    setAiExplaining((p) => ({ ...p, [qId]: true }));
     try {
       const res = await api.post('/ai/generate-explanation', {
-        questionText: question,
-        options,
-        correctAnswerIndex: correctIdx,
-        selectedOptionIndex: selectedIdx
+        questionText: question, options, correctAnswerIndex: correctIdx, selectedOptionIndex: selectedIdx
       });
-      if (res.data.success) {
-        setAiExplanations(prev => ({ ...prev, [questionId]: res.data.data }));
-      }
-    } catch (err) {
-      dispatch(addToast({ message: 'Failed to generate AI explanation', type: 'error' }));
+      if (res.data.success) setAiExplanations((p) => ({ ...p, [qId]: res.data.data }));
+    } catch {
+      dispatch(addToast({ message: 'AI explanation failed', type: 'error' }));
     } finally {
-      setAiExplaining(prev => ({ ...prev, [questionId]: false }));
+      setAiExplaining((p) => ({ ...p, [qId]: false }));
     }
   };
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-      </div>
-    );
+    return <div className="flex h-full items-center justify-center py-32"><Loader2 className="h-10 w-10 animate-spin text-neon-cyan" /></div>;
   }
 
   if (!result) {
-    return (
-      <div className="text-center py-20 bg-white dark:bg-dark-300 rounded-3xl">
-        <p className="text-gray-400 text-sm">Failed to load scorecard.</p>
-      </div>
-    );
+    return <GlassCard className="!p-20 text-center" hover={false}><p className="text-sm text-slate-500">Scorecard not found.</p></GlassCard>;
   }
 
-  // Count distribution
-  const correct = result.answers?.filter(a => a.isCorrect).length || 0;
-  const skipped = result.answers?.filter(a => a.selectedOption === null).length || 0;
+  const correct = result.answers?.filter((a) => a.isCorrect).length || 0;
+  const skipped = result.answers?.filter((a) => a.selectedOption === null).length || 0;
   const incorrect = (result.answers?.length || 0) - correct - skipped;
-
   const chartData = [
     { name: 'Correct', value: correct, color: '#10b981' },
     { name: 'Incorrect', value: incorrect, color: '#f43f5e' },
-    { name: 'Skipped', value: skipped, color: '#94a3b8' }
-  ].filter(c => c.value > 0);
+    { name: 'Skipped', value: skipped, color: '#64748b' }
+  ].filter((c) => c.value > 0);
 
   return (
-    <div className="space-y-8">
-      
-      {/* Visual Header Grid */}
-      <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 md:p-8 rounded-3xl shadow-sm flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0">
-        <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-            <Trophy className="w-8 h-8" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black">Mock Test Scorecard</h2>
-            <p className="text-gray-450 text-xs mt-1">Detailed response evaluation and performance trends</p>
+    <div className="space-y-6">
+      <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white">
+        <ArrowLeft className="h-4 w-4" /> Back to dashboard
+      </Link>
+
+      {/* Hero */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="relative overflow-hidden rounded-2xl border border-white/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-neon-blue/15 to-neon-purple/15" />
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/30 blur-3xl" />
+          <div className="relative grid gap-6 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-neon-blue">
+                <Trophy className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="font-display text-3xl font-bold text-white">Mock Scorecard</h1>
+                <p className="mt-1 text-sm text-slate-300">Detailed evaluation & AI analysis.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Pill label="Score" value={result.score} accent="text-neon-cyan" />
+              <Pill label="Accuracy" value={`${result.accuracy}%`} accent="text-emerald-400" />
+              <Pill label="Time" value={`${Math.round(result.timeSpent / 60)}m`} accent="text-amber-400" icon={Clock} />
+            </div>
           </div>
         </div>
+      </motion.div>
 
-        <div className="flex flex-wrap gap-4 justify-center">
-          <div className="text-center bg-gray-50 dark:bg-dark-200 border border-gray-150 dark:border-gray-800 px-5 py-3 rounded-2xl">
-            <span className="text-xs text-gray-400 font-semibold block">Score Obtained</span>
-            <span className="text-xl font-extrabold text-primary-500">{result.score}</span>
-          </div>
-          <div className="text-center bg-gray-50 dark:bg-dark-200 border border-gray-150 dark:border-gray-800 px-5 py-3 rounded-2xl">
-            <span className="text-xs text-gray-400 font-semibold block">Accuracy</span>
-            <span className="text-xl font-extrabold text-emerald-500">{result.accuracy}%</span>
-          </div>
-          <div className="text-center bg-gray-50 dark:bg-dark-200 border border-gray-150 dark:border-gray-800 px-5 py-3 rounded-2xl">
-            <span className="text-xs text-gray-400 font-semibold block">Time Spent</span>
-            <span className="text-xl font-extrabold text-gray-700 dark:text-white flex items-center justify-center space-x-1">
-              <Clock className="w-4 h-4 text-gray-400 mr-1" />
-              <span>{Math.round(result.timeSpent / 60)}m</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Answer Distribution Pie Chart and AI summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Pie Chart */}
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm flex flex-col justify-between">
-          <h3 className="text-lg font-bold mb-6">Response Distribution</h3>
+      {/* Distribution + AI */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-4 font-display text-lg font-semibold text-white">Response distribution</h3>
           {chartData.length > 0 ? (
-            <div className="h-64 relative flex items-center justify-center">
+            <div className="relative h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
+                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={4} dataKey="value">
+                    {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ background: 'rgba(15,18,38,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
                 </PieChart>
               </ResponsiveContainer>
-
-              {/* Legend overlay details */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-10px]">
-                <span className="text-2xl font-black text-gray-800 dark:text-white">
-                  {result.answers?.length || 0}
-                </span>
-                <span className="text-xs text-gray-450 uppercase font-semibold">Total MCQs</span>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-display text-3xl font-bold text-white">{result.answers?.length || 0}</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Questions</span>
               </div>
             </div>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-450">No answers recorded.</div>
+            <div className="flex h-64 items-center justify-center text-sm text-slate-500">No answers recorded.</div>
           )}
-
-          <div className="flex justify-center space-x-6 border-t border-gray-100 dark:border-gray-800 pt-5 mt-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-3.5 h-3.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold text-gray-500">Correct ({correct})</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3.5 h-3.5 rounded-full bg-rose-500" />
-              <span className="text-xs font-semibold text-gray-500">Incorrect ({incorrect})</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3.5 h-3.5 rounded-full bg-gray-400" />
-              <span className="text-xs font-semibold text-gray-500">Skipped ({skipped})</span>
-            </div>
+          <div className="mt-5 flex justify-center gap-5 border-t border-white/5 pt-4 text-xs">
+            <Legend color="bg-emerald-500" label={`Correct (${correct})`} />
+            <Legend color="bg-rose-500" label={`Incorrect (${incorrect})`} />
+            <Legend color="bg-slate-500" label={`Skipped (${skipped})`} />
           </div>
-        </div>
+        </GlassCard>
 
-        {/* AI Performance Breakdown */}
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 rounded-3xl shadow-sm flex flex-col justify-between space-y-6">
-          <div className="flex items-center space-x-2.5">
-            <Sparkles className="w-5.5 h-5.5 text-indigo-500" />
-            <h3 className="text-lg font-bold">AI Detailed Performance Audit</h3>
+        <GlassCard className="!p-6" hover={false}>
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-neon-purple" />
+            <h3 className="font-display text-lg font-semibold text-white">AI performance audit</h3>
           </div>
-
-          <div className="space-y-4 text-sm leading-relaxed">
+          <div className="space-y-4 text-sm">
             <div>
-              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450 uppercase tracking-wider block mb-1">Key Strengths</span>
-              <ul className="list-disc pl-5 text-gray-500 dark:text-gray-400 space-y-1">
-                {result.AIAnalysis?.strengths?.map((s, idx) => <li key={idx}>{s}</li>) || <li>High accuracy on simple questions.</li>}
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">Strengths</p>
+              <ul className="space-y-0.5 pl-4 text-slate-300 list-disc">
+                {(result.AIAnalysis?.strengths || ['Solid baseline accuracy']).map((s, i) => <li key={i}>{s}</li>)}
               </ul>
             </div>
-
             <div>
-              <span className="text-xs font-bold text-rose-600 dark:text-rose-450 uppercase tracking-wider block mb-1">Identified Weaknesses</span>
-              <ul className="list-disc pl-5 text-gray-500 dark:text-gray-400 space-y-1">
-                {result.AIAnalysis?.weaknesses?.map((w, idx) => <li key={idx}>{w}</li>) || <li>Numeric equations.</li>}
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-400">Weaknesses</p>
+              <ul className="space-y-0.5 pl-4 text-slate-300 list-disc">
+                {(result.AIAnalysis?.weaknesses || ['Numerical reasoning']).map((w, i) => <li key={i}>{w}</li>)}
               </ul>
             </div>
-
             <div>
-              <span className="text-xs font-bold text-gray-450 uppercase tracking-wider block mb-0.5">Pacing & Time Management</span>
-              <p className="text-gray-500 dark:text-gray-400 text-xs">{result.AIAnalysis?.timeManagement}</p>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Time management</p>
+              <p className="text-xs text-slate-300">{result.AIAnalysis?.timeManagement}</p>
+            </div>
+            <div className="rounded-xl border border-neon-purple/30 bg-neon-purple/10 p-3 text-xs text-slate-200">
+              <strong className="text-neon-purple">Study tip:</strong> {result.AIAnalysis?.studyPlanSuggestion}
             </div>
           </div>
-
-          <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-150 dark:border-indigo-900/50 p-4 rounded-2xl text-xs text-indigo-800 dark:text-indigo-300 leading-relaxed">
-            <strong>Remedial Study Tip:</strong> {result.AIAnalysis?.studyPlanSuggestion}
-          </div>
-        </div>
-
+        </GlassCard>
       </div>
 
-      {/* Solutions / Questions review sheet */}
+      {/* Question review */}
       {result.answers?.length > 0 && (
-        <div className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 p-6 md:p-8 rounded-3xl shadow-sm">
-          <h3 className="text-lg font-bold mb-6">Question Sheet Review</h3>
-
-          <div className="space-y-6 divide-y divide-gray-100 dark:divide-gray-850">
+        <GlassCard className="!p-6" hover={false}>
+          <h3 className="mb-5 font-display text-lg font-semibold text-white">Question review</h3>
+          <div className="space-y-4">
             {result.answers.map((ans, idx) => {
               const qId = ans.questionId?._id || ans.questionId;
               const isCorrect = ans.isCorrect;
               const isSkipped = ans.selectedOption === null;
-
               return (
-                <div key={idx} className={`pt-6 ${idx === 0 ? 'pt-0' : ''} space-y-4`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xs font-bold text-gray-400">Question {idx + 1}</span>
+                <div key={idx} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400">Q{idx + 1}</span>
                       <button
                         onClick={() => handleToggleBookmark(qId)}
-                        className={`text-xs font-bold flex items-center space-x-1 ${
-                          bookmarkedList.includes(qId) ? 'text-amber-500' : 'text-gray-400 hover:text-gray-500'
+                        className={`flex items-center gap-1 text-[10px] font-bold transition ${
+                          bookmarkedList.includes(qId) ? 'text-amber-400' : 'text-slate-500 hover:text-slate-300'
                         }`}
                       >
-                        ★ {bookmarkedList.includes(qId) ? 'Bookmarked' : 'Bookmark'}
+                        <Bookmark className={`h-3 w-3 ${bookmarkedList.includes(qId) ? 'fill-amber-400' : ''}`} />
+                        {bookmarkedList.includes(qId) ? 'Saved' : 'Bookmark'}
                       </button>
                     </div>
-                    <div className="flex items-center space-x-2 text-xs">
+                    <div className="flex items-center gap-2">
                       {isSkipped ? (
-                        <span className="text-gray-450 bg-gray-100 dark:bg-dark-200 px-2 py-1 rounded-md font-semibold">Skipped</span>
+                        <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Skipped</span>
                       ) : isCorrect ? (
-                        <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-1 rounded-md font-semibold">Correct</span>
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-400">Correct</span>
                       ) : (
-                        <span className="text-rose-600 bg-rose-50 dark:bg-rose-950/20 px-2 py-1 rounded-md font-semibold">Incorrect</span>
+                        <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-rose-400">Incorrect</span>
                       )}
-                      <span className="text-gray-400">Time spent: {ans.timeSpent}s</span>
+                      <span className="text-[10px] text-slate-500">{ans.timeSpent}s</span>
                     </div>
                   </div>
 
-                  <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">
-                    {ans.questionId?.question || `Simulated technical physics MCQ ${idx + 1}. What is the density coefficient?`}
-                  </p>
+                  <p className="mb-3 text-sm font-semibold text-white">{ans.questionId?.question}</p>
 
-                  {/* Options */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(ans.questionId?.options || ['Option A text', 'Option B (Correct)', 'Option C text', 'Option D text']).map((opt, oIdx) => {
-                      const isSelected = ans.selectedOption === oIdx;
-                      const isCorrectOpt = (ans.questionId?.correctAnswer ?? 1) === oIdx;
-                      
-                      let bgClass = 'bg-gray-50 border-gray-150 dark:bg-dark-200 dark:border-gray-800';
-                      if (isSelected) {
-                        bgClass = isCorrect ? 'bg-emerald-50 border-emerald-350 text-emerald-950 dark:bg-emerald-950/10 dark:border-emerald-800 dark:text-emerald-300' : 'bg-rose-50 border-rose-350 text-rose-950 dark:bg-rose-950/10 dark:border-rose-800 dark:text-rose-300';
-                      } else if (isCorrectOpt) {
-                        bgClass = 'bg-emerald-50/50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/5 dark:border-emerald-900/50 dark:text-emerald-450';
-                      }
-
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {(ans.questionId?.options || []).map((opt, oi) => {
+                      const isSel = ans.selectedOption === oi;
+                      const isCorrectOpt = (ans.questionId?.correctAnswer ?? -1) === oi;
+                      let cls = 'border-white/5 bg-white/[0.02] text-slate-300';
+                      if (isSel && isCorrect) cls = 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+                      else if (isSel && !isCorrect) cls = 'border-rose-500/40 bg-rose-500/10 text-rose-200';
+                      else if (isCorrectOpt) cls = 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300';
                       return (
-                        <div key={oIdx} className={`p-3 border rounded-xl text-xs font-semibold flex items-center space-x-2 ${bgClass}`}>
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border text-[10px] ${
-                            isSelected ? 'bg-white border-transparent' : 'bg-transparent border-gray-300'
-                          }`}>
-                            {String.fromCharCode(65 + oIdx)}
-                          </div>
-                          <span>{opt}</span>
+                        <div key={oi} className={`flex items-center gap-2 rounded-lg border p-2.5 text-xs ${cls}`}>
+                          <span className="flex h-5 w-5 items-center justify-center rounded font-mono text-[10px] font-bold ring-1 ring-white/10">
+                            {String.fromCharCode(65 + oi)}
+                          </span>
+                          {opt}
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* AI Explanation Drawer Trigger */}
-                  <div className="pt-2">
-                    <button
-                      onClick={() => handleFetchExplanation(
-                        ans.questionId?.question || 'Density Coefficient question',
-                        ans.questionId?.options || ['A', 'B', 'C', 'D'],
-                        ans.questionId?.correctAnswer ?? 1,
-                        ans.selectedOption,
-                        qId
-                      )}
-                      className="text-xs font-bold text-indigo-500 hover:text-indigo-600 flex items-center space-x-1.5 transition-all"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>{expandedQ === qId ? 'Close AI Explanation' : 'Ask AI for Explanation'}</span>
-                      {expandedQ === qId ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
-
-                    {expandedQ === qId && (
-                      <div className="mt-3 bg-gray-50 dark:bg-dark-200 border border-gray-150 dark:border-gray-800 p-5 rounded-2xl text-xs leading-relaxed text-gray-650 dark:text-gray-350">
-                        {aiExplaining[qId] ? (
-                          <div className="flex items-center space-x-2 text-indigo-500">
-                            <Loader2 className="w-4.5 h-4.5 animate-spin" />
-                            <span>Gemini is compiling solution walkthrough...</span>
-                          </div>
-                        ) : (
-                          <div className="prose dark:prose-invert max-w-none whitespace-pre-line">
-                            {aiExplanations[qId] || 'No explanation available.'}
-                          </div>
-                        )}
-                      </div>
+                  <button
+                    onClick={() => handleFetchExplanation(
+                      ans.questionId?.question || '',
+                      ans.questionId?.options || [],
+                      ans.questionId?.correctAnswer ?? 0,
+                      ans.selectedOption,
+                      qId
                     )}
-                  </div>
+                    className="mt-3 flex items-center gap-1.5 text-xs font-bold text-neon-purple transition hover:text-neon-cyan"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {expandedQ === qId ? 'Close AI explanation' : 'Ask AI for explanation'}
+                    {expandedQ === qId ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
 
+                  {expandedQ === qId && (
+                    <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] p-4 text-xs leading-relaxed text-slate-300">
+                      {aiExplaining[qId] ? (
+                        <div className="flex items-center gap-2 text-neon-cyan">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Gemini compiling solution...
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-line">{aiExplanations[qId] || 'No explanation available.'}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
-        </div>
+        </GlassCard>
       )}
 
-      {/* Footer Navigation */}
-      <div className="flex items-center space-x-4">
-        <Link
-          to="/dashboard"
-          className="bg-primary-500 hover:bg-primary-600 text-white font-bold px-6 py-3 rounded-2xl text-sm shadow-md"
-        >
-          Back to Dashboard
-        </Link>
-        <Link
-          to="/leaderboard"
-          className="bg-white dark:bg-dark-300 border border-gray-250 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-bold px-6 py-3 rounded-2xl text-sm"
-        >
-          Check Rankings
-        </Link>
+      <div className="flex flex-wrap gap-3">
+        <GradientButton as={Link} to="/dashboard">Back to dashboard</GradientButton>
+        <GradientButton as={Link} to="/leaderboard" variant="ghost">Check rankings</GradientButton>
       </div>
+    </div>
+  );
+}
 
+function Pill({ label, value, accent, icon: Icon }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 backdrop-blur-md">
+      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+      <p className={`mt-1 flex items-center gap-1.5 font-display text-lg font-bold ${accent}`}>
+        {Icon && <Icon className="h-4 w-4" />}
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function Legend({ color, label }) {
+  return (
+    <div className="flex items-center gap-1.5 text-slate-400">
+      <div className={`h-2.5 w-2.5 rounded-sm ${color}`} />
+      {label}
     </div>
   );
 }

@@ -1,27 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { fetchTests } from '../store/slices/testSlice';
 import { addToast } from '../store/slices/uiSlice';
-import { Play, Clock, AlertTriangle, ShieldAlert, Award, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  Play, Clock, ShieldAlert, FileText, CheckCircle2, Filter, Search
+} from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+import GradientButton from '../components/ui/GradientButton';
+
+const CATEGORIES = ['BTSC', 'SSC', 'Railway', 'BPSC', 'Polytechnic'];
 
 export default function MockTests() {
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedTest, setSelectedTest] = useState(null); // active selected test for instructions modal
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [search, setSearch] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
-
   const { tests, loading } = useSelector((state) => state.test);
 
-  const categories = ['BTSC', 'SSC', 'Railway', 'BPSC', 'Polytechnic'];
+  useEffect(() => { dispatch(fetchTests(selectedCategory)); }, [dispatch, selectedCategory]);
 
-  useEffect(() => {
-    dispatch(fetchTests(selectedCategory));
-  }, [dispatch, selectedCategory]);
-
-  const handleStartExamClick = (test) => {
-    setSelectedTest(test);
-  };
+  const filtered = tests.filter(t => !search || t.title.toLowerCase().includes(search.toLowerCase()));
 
   const handleConfirmStart = () => {
     if (selectedTest) {
@@ -33,151 +34,170 @@ export default function MockTests() {
   };
 
   return (
-    <div className="space-y-8">
-      
-      {/* Upper header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Exam Series Hub</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Select your exam stream and practice with state-level mocks</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Exam <span className="text-gradient">series hub</span>
+        </h1>
+        <p className="mt-2 text-sm text-slate-400">Pick your exam stream and practice with proctored, AI-graded mocks.</p>
+      </div>
+
+      {/* Filter row */}
+      <GlassCard className="!p-4" hover={false}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search mock test titles..."
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-neon-blue/60 focus:ring-2 focus:ring-neon-blue/15"
+            />
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <Filter className="h-4 w-4 shrink-0 text-slate-500" />
+            <CategoryChip active={selectedCategory === ''} onClick={() => setSelectedCategory('')}>
+              All
+            </CategoryChip>
+            {CATEGORIES.map((cat) => (
+              <CategoryChip key={cat} active={selectedCategory === cat} onClick={() => setSelectedCategory(cat)}>
+                {cat}
+              </CategoryChip>
+            ))}
+          </div>
         </div>
-      </div>
+      </GlassCard>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2.5 border-b border-gray-200 dark:border-gray-800 pb-4">
-        <button
-          onClick={() => setSelectedCategory('')}
-          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-            selectedCategory === ''
-              ? 'bg-primary-500 text-white shadow-md shadow-primary-500/10'
-              : 'bg-white dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-150'
-          }`}
-        >
-          All Exams
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              selectedCategory === cat
-                ? 'bg-primary-500 text-white shadow-md shadow-primary-500/10'
-                : 'bg-white dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-150'
-            }`}
-          >
-            {cat} Exam
-          </button>
-        ))}
-      </div>
-
-      {/* Grid List */}
+      {/* Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-48 bg-white dark:bg-dark-300 rounded-3xl border border-gray-200/50 dark:border-gray-800/50" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div key={n} className="skeleton-shimmer h-52 rounded-2xl border border-white/5" />
           ))}
         </div>
-      ) : tests.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tests.map((test) => (
-            <div 
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((test, i) => (
+            <motion.div
               key={test._id}
-              className="bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
             >
-              <div>
-                <span className="bg-primary-50 dark:bg-primary-950/20 text-primary-500 text-xs font-extrabold px-2.5 py-1 rounded-lg">
-                  {test.examCategory} Exam
-                </span>
-                
-                <h3 className="font-extrabold text-lg mt-4 text-gray-800 dark:text-gray-100 line-clamp-2">{test.title}</h3>
-                
-                {/* Stats */}
-                <div className="flex items-center space-x-4 mt-6 text-sm text-gray-400">
-                  <div className="flex items-center space-x-1.5">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                    <span>{test.duration} mins</span>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <FileText className="w-4 h-4 text-gray-400" />
-                    <span>{test.questions?.length || 0} MCQs</span>
-                  </div>
+              <GlassCard className="flex h-full flex-col !p-5">
+                <div className="mb-4 flex items-start justify-between">
+                  <span className="inline-flex rounded-full bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-neon-cyan ring-1 ring-neon-blue/30">
+                    {test.examCategory}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-rose-400">
+                    -{test.negativeMarking || 0}x
+                  </span>
                 </div>
-              </div>
 
-              <div className="border-t border-gray-100 dark:border-gray-850 pt-5 mt-6 flex items-center justify-between">
-                <div className="text-xs text-gray-400 font-medium">
-                  Negative Mark: <span className="text-rose-500 font-bold">-{test.negativeMarking}x</span>
+                <h3 className="line-clamp-2 font-display text-lg font-semibold text-white">{test.title}</h3>
+
+                <div className="mt-4 flex items-center gap-4 text-xs text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    {test.duration} min
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    {test.questions?.length || 0} MCQs
+                  </div>
                 </div>
+
                 <button
-                  onClick={() => handleStartExamClick(test)}
-                  className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all active:scale-95"
+                  onClick={() => setSelectedTest(test)}
+                  className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-gradient-blue-purple py-2.5 text-sm font-bold text-white shadow-neon-blue transition hover:-translate-y-0.5"
                 >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start Test</span>
+                  <Play className="h-3.5 w-3.5 fill-white" />
+                  Start test
                 </button>
-              </div>
-
-            </div>
+              </GlassCard>
+            </motion.div>
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center bg-white dark:bg-dark-300 border border-gray-200/50 dark:border-gray-800/50 rounded-3xl">
-          <p className="text-gray-400 text-sm">No mock tests available in this category yet.</p>
-        </div>
+        <GlassCard className="!p-16 text-center" hover={false}>
+          <FileText className="mx-auto h-12 w-12 text-slate-600" />
+          <p className="mt-4 text-sm text-slate-400">No mock tests in this category yet.</p>
+        </GlassCard>
       )}
 
-      {/* Instructions Proctoring Modal */}
-      {selectedTest && (
-        <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-dark-300 border border-gray-200 dark:border-gray-800 max-w-lg w-full p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
-            
-            <div className="flex items-center space-x-3 text-amber-500">
-              <ShieldAlert className="w-7 h-7" />
-              <h3 className="text-xl font-black">Proctored Exam Instructions</h3>
-            </div>
+      {/* Instructions modal */}
+      <AnimatePresence>
+        {selectedTest && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+              onClick={() => setSelectedTest(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
+            >
+              <div className="rounded-2xl border border-white/10 bg-ink-900/95 p-6 shadow-2xl backdrop-blur-xl md:p-8">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="rounded-lg bg-amber-500/15 p-2.5 text-amber-400">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-white">Proctored Exam Rules</h3>
+                </div>
 
-            <div className="space-y-4 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-              <p>You are about to start a monitored mock test. Please read the guidelines carefully before beginning:</p>
-              
-              <div className="space-y-3 pt-2">
-                <div className="flex items-start space-x-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span><strong>Fullscreen Enforcement:</strong> The test will request full-screen mode on launch. Do not escape.</span>
-                </div>
-                <div className="flex items-start space-x-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span><strong>Tab Switch Detection:</strong> Tab switching is logged. Focus shifts exceeding <strong>3 events</strong> will auto-submit the exam scorecard.</span>
-                </div>
-                <div className="flex items-start space-x-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span><strong>Input Locking:</strong> Right click context menu, copy, paste, and text selections are locked to protect exam integrity.</span>
-                </div>
-                <div className="flex items-start space-x-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span><strong>Pacing Timer:</strong> Ensure you keep track of the remaining clock. The system submits answers automatically when duration lapses.</span>
+                <p className="mb-4 text-sm text-slate-300">
+                  Before you start <strong className="text-white">{selectedTest.title}</strong>, read the rules:
+                </p>
+
+                <ul className="space-y-3 text-sm text-slate-300">
+                  {[
+                    'Fullscreen is enforced — exiting counts as a violation.',
+                    'Tab switches are logged. 3 violations = auto-submit.',
+                    'Right-click, copy, and paste are disabled.',
+                    'When time runs out, answers submit automatically.'
+                  ].map((rule, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setSelectedTest(null)}
+                    className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-slate-200 hover:bg-white/[0.08]"
+                  >
+                    Cancel
+                  </button>
+                  <GradientButton onClick={handleConfirmStart} className="!flex-1">
+                    Accept & begin
+                  </GradientButton>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center space-x-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-              <button
-                onClick={() => setSelectedTest(null)}
-                className="flex-1 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 hover:opacity-90 font-bold py-3.5 rounded-2xl text-sm transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmStart}
-                className="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-bold py-3.5 rounded-2xl text-sm shadow-lg shadow-primary-500/20 transition-all"
-              >
-                Accept & Begin
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function CategoryChip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+        active
+          ? 'bg-gradient-blue-purple text-white shadow-neon-blue'
+          : 'border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
