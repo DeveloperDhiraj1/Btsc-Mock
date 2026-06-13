@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import GlassCard from '../components/ui/GlassCard';
 import GradientButton from '../components/ui/GradientButton';
+import MarkdownNotes from '../components/MarkdownNotes';
 
 export default function Notes() {
   const dispatch = useDispatch();
@@ -149,8 +150,8 @@ export default function Notes() {
                 )}
               </div>
               {notesContent ? (
-                <div className="prose-invert max-w-none whitespace-pre-line text-sm leading-relaxed text-slate-300">
-                  {notesContent}
+                <div className="notes-print max-w-none">
+                  <MarkdownNotes source={notesContent} />
                 </div>
               ) : (
                 <div className="flex h-96 flex-col items-center justify-center gap-3 text-center text-slate-500">

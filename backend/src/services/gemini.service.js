@@ -168,15 +168,40 @@ const generateNotes = async (subject, topic) => {
    - Read the question for keyword modifiers like "NOT", "EXCEPT", or "INCORRECT".`;
   }
 
-  const prompt = `You are a professional tutor preparing rapid-revision bullet points for competitive exams.
-  Generate comprehensive revision study notes for the subject "${subject}", specifically covering the topic "${topic}".
-  Include:
-  - A brief conceptual summary (2-3 paragraphs)
-  - Key formulas, theorems, and definitions
-  - 3-4 memory tips or shortcut tricks for competitive exams
-  - Common pitfalls or silly mistakes students make on this topic.
-  
-  Format the output cleanly using Markdown. Use clear headings and bullets.`;
+  const prompt = `You are a senior tutor writing exam-ready revision notes for competitive aspirants.
+Topic: "${topic}"  |  Subject: "${subject}"
+
+Produce well-structured Markdown notes that follow this exact skeleton:
+
+# ${topic}
+
+## Concept Overview
+2–3 short paragraphs explaining the topic in plain English. Mention why it matters in the exam.
+
+## Key Definitions
+- **Term** — concise one-line meaning.
+(4–6 entries)
+
+## Important Formulas & Theorems
+- **Name** — formula in inline code like \`F = m·a\`, followed by a short note on when to apply.
+(3–6 entries; use inline code for every formula)
+
+## Worked Example
+A single solved numerical or conceptual example, step-by-step (use a numbered list).
+
+## Memory Tricks & Shortcuts
+- Crisp mnemonic or shortcut (3–4 bullets).
+
+## Common Pitfalls
+- One-line mistake students make + how to avoid it (3–4 bullets).
+
+## Quick Recap
+> One-sentence takeaway in a blockquote.
+
+Rules:
+- Use only headings (##, ###), bullet lists (-), numbered lists (1.), bold (**...**), inline code (\`...\`), and blockquotes (>). No tables, no HTML.
+- Keep total length under ~450 words. Be dense, not fluffy.
+- Do NOT wrap the whole response in a code fence. Output raw Markdown only.`;
 
   let attempts = 0;
   while (attempts < 3) {

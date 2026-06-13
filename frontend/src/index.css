@@ -131,3 +131,30 @@
   color: #e2e8f0;
   overflow-y: auto;
 }
+
+/* Print stylesheet for AI notes — strips the dark dashboard chrome so
+   window.print() produces a clean, premium PDF. */
+@media print {
+  body * { visibility: hidden !important; }
+  .notes-print, .notes-print * { visibility: visible !important; }
+  .notes-print {
+    position: absolute !important;
+    inset: 0 !important;
+    padding: 24px 32px !important;
+    background: #ffffff !important;
+    color: #1a202c !important;
+  }
+  .notes-print h1, .notes-print h2, .notes-print h3,
+  .notes-print h4, .notes-print strong { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }
+  .notes-print p, .notes-print li, .notes-print span { color: #334155 !important; }
+  .notes-print code, .notes-print pre {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+  .notes-print blockquote {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border-left-color: #4A90E2 !important;
+  }
+}
