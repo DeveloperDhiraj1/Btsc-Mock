@@ -616,7 +616,6 @@ const {
   OTP_MIN_RESEND_INTERVAL_MS,
   OTP_MAX_ATTEMPTS
 } = require('../utils/otpGenerator');
-const logger = require('../utils/logger');
 
 const strongPasswordPattern =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
@@ -694,11 +693,11 @@ const issueOTP = async (user, purpose) => {
   return { ok: true, otp };
 };
 
-const enqueueOtpEmail = async (email, name, otp, subject) => {
+const enqueueOtpEmail = async (email, name, otp) => {
   const emailQueue = getQueue('email-queue');
   await emailQueue.add('sendOTP', {
     to: email,
-    subject,
+    subject: 'OTP Verification',
     html: `Your OTP is: ${otp}`
   });
 };
@@ -717,10 +716,7 @@ const register = async (req, res, next) => {
     }
 
     if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Weak password'
-      });
+      return res.status(400).json({ success: false, message: 'Weak password' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -747,7 +743,7 @@ const register = async (req, res, next) => {
       });
     }
 
-    await enqueueOtpEmail(normalizedEmail, user.name, result.otp, 'Verify OTP');
+    await enqueueOtpEmail(normalizedEmail, user.name, result.otp);
 
     return res.status(201).json({
       success: true,
@@ -768,13 +764,13 @@ const verifyEmail = async (req, res, next) => {
     }).select('+otpHash +otpExpires +otpAttempts +otpPurpose');
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Not found' });
+      return res.status(404).json({ success: false });
     }
 
     if (!compareOTP(otp, user.otpHash)) {
       user.otpAttempts++;
       await user.save();
-      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+      return res.status(400).json({ success: false });
     }
 
     user.isVerified = true;
@@ -785,16 +781,13 @@ const verifyEmail = async (req, res, next) => {
 
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Verified'
-    });
+    return res.status(200).json({ success: true });
   } catch (err) {
     next(err);
   }
 };
 
-// ================= RESEND OTP (IMPORTANT FIXED) =================
+// ================= RESEND OTP =================
 const resendOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -816,7 +809,7 @@ const resendOTP = async (req, res, next) => {
       });
     }
 
-    await enqueueOtpEmail(user.email, user.name, result.otp, 'Resend OTP');
+    await enqueueOtpEmail(user.email, user.name, result.otp);
 
     return res.status(200).json({ success: true });
   } catch (err) {
@@ -824,9 +817,50 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
-// ================= EXPORT (MOST IMPORTANT FIX) =================
+// ================= ADMIN FUNCTIONS =================
+const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({});
+    res.json({ success: true, data: users });
+  } catch (e) {
+    next(e);
+  }
+};
+
+const updateUserRole = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role: req.body.role },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ success: false });
+
+    res.json({ success: true, data: user });
+  } catch (e) {
+    next(e);
+  }
+};
+
+const deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) return res.status(404).json({ success: false });
+
+    res.json({ success: true });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// ================= EXPORT (IMPORTANT) =================
 module.exports = {
   register,
   verifyEmail,
-  resendOTP
+  resendOTP,
+  getAllUsers,
+  updateUserRole,
+  deleteUser
 };
