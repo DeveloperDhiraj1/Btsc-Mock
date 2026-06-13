@@ -621,26 +621,18 @@ const logger = require('../utils/logger');
 const strongPasswordPattern =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 
-const isStrongPassword = (password = '') =>
-  strongPasswordPattern.test(password);
+const isStrongPassword = (p = '') => strongPasswordPattern.test(p);
 
-// Generate JWT Access Token
-const generateAccessToken = (user) => {
-  return jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '15m' }
-  );
-};
+// ================= JWT =================
+const generateAccessToken = (user) =>
+  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: '15m'
+  });
 
-// Generate JWT Refresh Token
-const generateRefreshToken = (user) => {
-  return jwt.sign(
-    { id: user._id },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
-  );
-};
+const generateRefreshToken = (user) =>
+  jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: '7d'
+  });
 
 const clearRefreshCookie = (res) => {
   res.clearCookie('refreshToken', {
@@ -649,15 +641,6 @@ const clearRefreshCookie = (res) => {
     sameSite: 'none'
   });
 };
-
-const getPublicUser = (user) => ({
-  id: user._id,
-  name: user.name,
-  email: user.email,
-  role: user.role,
-  profileImage: user.profileImage,
-  subscriptionPlan: user.subscriptionPlan
-});
 
 const sendAuthResponse = (res, user) => {
   const accessToken = generateAccessToken(user);
@@ -673,11 +656,16 @@ const sendAuthResponse = (res, user) => {
   return res.status(200).json({
     success: true,
     token: accessToken,
-    user: getPublicUser(user)
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    }
   });
 };
 
-// OTP Issue
+// ================= OTP =================
 const issueOTP = async (user, purpose) => {
   const now = Date.now();
 
@@ -685,13 +673,12 @@ const issueOTP = async (user, purpose) => {
     user.lastOtpSent &&
     now - user.lastOtpSent.getTime() < OTP_MIN_RESEND_INTERVAL_MS
   ) {
-    const retryAfter = Math.ceil(
-      (OTP_MIN_RESEND_INTERVAL_MS -
-        (now - user.lastOtpSent.getTime())) /
-        1000
-    );
-
-    return { ok: false, retryAfter };
+    return {
+      ok: false,
+      retryAfter: Math.ceil(
+        (OTP_MIN_RESEND_INTERVAL_MS - (now - user.lastOtpSent.getTime())) / 1000
+      )
+    };
   }
 
   const otp = generateOTP();
@@ -712,50 +699,37 @@ const enqueueOtpEmail = async (email, name, otp, subject) => {
   await emailQueue.add('sendOTP', {
     to: email,
     subject,
-    html: otp
+    html: `Your OTP is: ${otp}`
   });
 };
 
-//
 // ================= REGISTER =================
-//
-exports.register = async (req, res, next) => {
+const register = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, email, and password are required'
-      });
+      return res.status(400).json({ success: false, message: 'Missing fields' });
     }
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid email' });
     }
 
     if (!isStrongPassword(password)) {
       return res.status(400).json({
         success: false,
-        message:
-          'Password must include uppercase, lowercase, number, special char'
+        message: 'Weak password'
       });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    const userExists = await User.findOne({ email: normalizedEmail });
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists'
-      });
+    const exists = await User.findOne({ email: normalizedEmail });
+    if (exists) {
+      return res.status(400).json({ success: false, message: 'User exists' });
     }
 
-    // CREATE USER
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
@@ -764,87 +738,43 @@ exports.register = async (req, res, next) => {
       authProvider: 'local'
     });
 
-    // ✅ FIX: NO findById + NO select (this was crashing tests)
     const result = await issueOTP(user, 'verify');
 
     if (!result.ok) {
       return res.status(429).json({
         success: false,
-        message: `Please wait ${result.retryAfter}s before requesting OTP`
+        message: `Wait ${result.retryAfter}s`
       });
     }
 
-    await enqueueOtpEmail(
-      normalizedEmail,
-      user.name,
-      result.otp,
-      'Verify Account'
-    );
+    await enqueueOtpEmail(normalizedEmail, user.name, result.otp, 'Verify OTP');
 
     return res.status(201).json({
       success: true,
-      message: 'OTP sent to your email'
+      message: 'OTP sent'
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-//
-// ================= VERIFY EMAIL =================
-//
-exports.verifyEmail = async (req, res, next) => {
+// ================= VERIFY =================
+const verifyEmail = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const user = await User.findOne({ email: normalizedEmail }).select(
-      '+otpHash +otpExpires +otpAttempts +lastOtpSent +otpPurpose'
-    );
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    }).select('+otpHash +otpExpires +otpAttempts +otpPurpose');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Already verified'
-      });
-    }
-
-    if (new Date() > user.otpExpires) {
-      user.otpHash = undefined;
-      user.otpExpires = undefined;
-      user.otpAttempts = 0;
-      user.otpPurpose = undefined;
-      await user.save();
-
-      return res.status(400).json({
-        success: false,
-        message: 'OTP expired'
-      });
-    }
-
-    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
-      return res.status(429).json({
-        success: false,
-        message: 'Too many attempts'
-      });
+      return res.status(404).json({ success: false, message: 'Not found' });
     }
 
     if (!compareOTP(otp, user.otpHash)) {
-      user.otpAttempts += 1;
+      user.otpAttempts++;
       await user.save();
-
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
 
     user.isVerified = true;
@@ -857,93 +787,46 @@ exports.verifyEmail = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Verified successfully'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-//
-// ================= LOGIN =================
-//
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email }).select('+password');
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    const isMatch = await user.matchPassword(password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    if (!user.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: 'Verify email first'
-      });
-    }
-
-    return sendAuthResponse(res, user);
-  } catch (error) {
-    next(error);
-  }
-};
-
-//
-// ================= REFRESH TOKEN =================
-//
-exports.refreshToken = async (req, res) => {
-  try {
-    const token = req.cookies.refreshToken;
-
-    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      clearRefreshCookie(res);
-      return res.status(401).json({
-        success: false,
-        message: 'Session expired'
-      });
-    }
-
-    const newToken = generateAccessToken(user);
-
-    return res.status(200).json({
-      success: true,
-      token: newToken
+      message: 'Verified'
     });
   } catch (err) {
-    clearRefreshCookie(res);
-    return res.status(401).json({
-      success: false,
-      message: 'Session expired'
-    });
+    next(err);
   }
 };
 
-//
-// ================= OTHER ROUTES (UNCHANGED SAFE) =================
-// (keeping them same for stability)
-exports.getMe = async (req, res, next) => {
+// ================= RESEND OTP (IMPORTANT FIXED) =================
+const resendOTP = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
-    res.json({ success: true, data: user });
-  } catch (e) {
-    next(e);
+    const { email } = req.body;
+
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false });
+    }
+
+    const result = await issueOTP(user, 'verify');
+
+    if (!result.ok) {
+      return res.status(429).json({
+        success: false,
+        message: `Wait ${result.retryAfter}s`
+      });
+    }
+
+    await enqueueOtpEmail(user.email, user.name, result.otp, 'Resend OTP');
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    next(err);
   }
+};
+
+// ================= EXPORT (MOST IMPORTANT FIX) =================
+module.exports = {
+  register,
+  verifyEmail,
+  resendOTP
 };
